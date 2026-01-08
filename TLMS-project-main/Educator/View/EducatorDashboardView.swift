@@ -65,7 +65,7 @@ struct EducatorDashboardView: View {
                                 .padding(.horizontal)
                                 
                                 // Create course button
-                                Button(action: {}) {
+                                NavigationLink(destination: CreateCourseView(viewModel: CourseCreationViewModel(educatorID: user.id))) {
                                     HStack {
                                         Image(systemName: "plus.circle.fill")
                                             .font(.system(size: 24))
