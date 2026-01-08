@@ -97,6 +97,8 @@ struct LearnerDashboardView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
+        .id(user.id)
     }
     
     private func handleLogout() {
