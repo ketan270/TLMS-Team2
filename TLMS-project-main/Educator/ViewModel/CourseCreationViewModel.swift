@@ -20,7 +20,7 @@ class CourseCreationViewModel: ObservableObject {
             title: "",
             description: "",
             category: "",
-            educatorID: educatorID
+            educatorID: educatorID 
         )
     }
     
