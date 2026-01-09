@@ -50,6 +50,36 @@ struct LessonDetailView: View {
                         .padding(.horizontal)
                         .padding(.top)
                         
+                        // Description Section
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Lesson Description (Optional)")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            
+                            ZStack(alignment: .topLeading) {
+                                if lesson.content.wrappedValue?.isEmpty ?? true {
+                                    Text("Describe what learners will learn in this lesson...")
+                                        .foregroundColor(.gray.opacity(0.6))
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                }
+                                
+                                TextEditor(text: Binding(
+                                    get: { lesson.content.wrappedValue ?? "" },
+                                    set: { lesson.content.wrappedValue = $0 }
+                                ))
+                                .frame(minHeight: 100)
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                            }
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .cornerRadius(12)
+                        }
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                        
                         // Content Type Section
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Content Type")
@@ -57,9 +87,14 @@ struct LessonDetailView: View {
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal)
                             
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 16) {
+                            Text("Choose the format for this lesson")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal)
+                            
+                            VStack(spacing: 12) {
                                 ForEach(ContentType.allCases) { type in
-                                    ContentTypeCard(
+                                    ContentTypeSelectionCard(
                                         type: type,
                                         isSelected: lesson.type.wrappedValue == type,
                                         action: { lesson.type.wrappedValue = type }
@@ -68,36 +103,7 @@ struct LessonDetailView: View {
                             }
                             .padding(.horizontal)
                         }
-                        
-                        // Content Configuration (Placeholder based on type)
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Content Details")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            
-                            VStack(spacing: 16) {
-                                switch lesson.type.wrappedValue {
-                                case .video:
-                                    ContentPlaceholder(icon: "play.circle", text: "Upload Video or Enter URL")
-                                case .pdf:
-                                    ContentPlaceholder(icon: "doc.fill", text: "Upload PDF Document")
-                                case .text:
-                                    ContentPlaceholder(icon: "doc.text.fill", text: "Write or Paste Text Content")
-                                case .presentation:
-                                    ContentPlaceholder(icon: "rectangle.on.rectangle.fill", text: "Upload Slides")
-                                case .quiz:
-                                    ContentPlaceholder(icon: "checkmark.circle.fill", text: "Configure Quiz Questions")
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(32)
-                            .background(Color(uiColor: .secondarySystemGroupedBackground))
-                            .cornerRadius(12)
-                        }
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(16)
-                        .padding(.horizontal)
+                        .padding(.vertical)
                     }
                     .padding(.bottom, 30)
                 }
@@ -110,56 +116,89 @@ struct LessonDetailView: View {
     }
 }
 
-struct ContentTypeCard: View {
+// MARK: - Content Type Selection Card
+
+struct ContentTypeSelectionCard: View {
     let type: ContentType
     let isSelected: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 12) {
-                Image(systemName: type.icon)
-                    .font(.system(size: 32))
-                    .foregroundColor(isSelected ? .white : .blue)
+            HStack(spacing: 16) {
+                // Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            isSelected ?
+                            LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing) :
+                            LinearGradient(colors: [Color.blue.opacity(0.1)], startPoint: .top, endPoint: .bottom)
+                        )
+                        .frame(width: 56, height: 56)
+                    
+                    Image(systemName: type.icon)
+                        .font(.system(size: 24))
+                        .foregroundColor(isSelected ? .white : .blue)
+                }
                 
-                Text(type.rawValue)
-                    .font(.headline)
-                    .foregroundColor(isSelected ? .white : .primary)
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(type.rawValue)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(type.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Checkmark
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.green)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 120)
+            .padding(16)
+            .background(.ultraThinMaterial)
             .background(
                 isSelected ?
-                LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing) :
-                LinearGradient(colors: [Color(uiColor: .secondarySystemGroupedBackground)], startPoint: .top, endPoint: .bottom)
+                Color.blue.opacity(0.05) :
+                Color.clear
             )
             .cornerRadius(16)
-            .shadow(color: isSelected ? .blue.opacity(0.3) : Color.black.opacity(0.05), radius: 8, y: 4)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(isSelected ? Color.clear : Color.blue.opacity(0.1), lineWidth: 1)
+                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
             )
+            .shadow(color: isSelected ? Color.blue.opacity(0.2) : Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - ContentType Extension
+
+extension ContentType {
+    var description: String {
+        switch self {
+        case .video: return "Video content"
+        case .pdf: return "PDF document"
+        case .text: return "Text-based content"
+        case .presentation: return "Slide presentation"
+        case .quiz: return "Interactive quiz"
         }
     }
 }
 
-struct ContentPlaceholder: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-            Text(text)
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            Button("Choose File / Edit") {
-                // Placeholder action
-            }
-            .buttonStyle(.bordered)
-        }
+#Preview {
+    NavigationView {
+        LessonDetailView(
+            viewModel: CourseCreationViewModel(educatorID: UUID()),
+            moduleID: UUID(),
+            lessonID: UUID()
+        )
     }
 }

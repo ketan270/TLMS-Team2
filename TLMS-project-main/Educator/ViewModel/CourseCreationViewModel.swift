@@ -74,10 +74,23 @@ class CourseCreationViewModel: ObservableObject {
         newCourse.modules[moduleIndex].lessons.move(fromOffsets: source, toOffset: destination)
     }
     
-    // MARK: - Validation
+    
+    // MARK: - Course Actions
     
     var isCourseInfoValid: Bool {
         !newCourse.title.isEmpty && !newCourse.description.isEmpty && !newCourse.category.isEmpty
+    }
+    
+    func saveDraft() {
+        // In a real app, this would save to backend/database with draft status
+        print("Course saved as draft: \(newCourse.title)")
+        // TODO: Implement actual draft saving logic
+    }
+    
+    func sendToReview() {
+        // In a real app, this would submit course for admin review
+        print("Course sent to review: \(newCourse.title)")
+        // TODO: Implement actual review submission logic
     }
     
     func publishCourse() {

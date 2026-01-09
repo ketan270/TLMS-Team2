@@ -63,6 +63,36 @@ struct ModuleDetailView: View {
                         .padding(.horizontal)
                         .padding(.top)
                         
+                        // Module Description Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Module Description (Optional)")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            
+                            ZStack(alignment: .topLeading) {
+                                if let desc = viewModel.newCourse.modules[index].description, desc.isEmpty || viewModel.newCourse.modules[index].description == nil {
+                                    Text("Describe what this module covers...")
+                                        .foregroundColor(.gray.opacity(0.6))
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                }
+                                
+                                TextEditor(text: Binding(
+                                    get: { viewModel.newCourse.modules[index].description ?? "" },
+                                    set: { viewModel.newCourse.modules[index].description = $0 }
+                                ))
+                                .frame(minHeight: 80)
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                            }
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .cornerRadius(12)
+                        }
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                        
                         // Lessons List
                         VStack(alignment: .leading, spacing: 16) {
                             HStack {

@@ -80,6 +80,11 @@ struct CreateCourseView: View {
                                 .background(Color(uiColor: .secondarySystemGroupedBackground))
                                 .cornerRadius(12)
                             }
+                            
+                            Text("Helps learners discover your course easily")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 4)
                         }
                         
                         // Description
@@ -113,10 +118,14 @@ struct CreateCourseView: View {
                     
                     // Continue Button
                     NavigationLink(destination: CourseStructureView(viewModel: viewModel)) {
-                        Text("Continue to Structure")
-                            .font(.system(size: 18, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
+                        HStack(spacing: 8) {
+                            Text("Next")
+                                .font(.system(size: 18, weight: .bold))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 16, weight: .bold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
                             .background(
                                 viewModel.isCourseInfoValid ?
                                 LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing) :
