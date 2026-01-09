@@ -91,6 +91,8 @@ struct AdminDashboardView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
+        .id(user.id)
         .task {
             await loadData()
         }
