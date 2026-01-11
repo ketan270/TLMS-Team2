@@ -54,6 +54,9 @@ struct LearnerDashboardView: View {
                         }
                         .padding(.horizontal)
                         
+                        // Recommendations Section
+                        RecommendationListView(userId: user.id)
+                        
                         // Course sections
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Continue Learning")
