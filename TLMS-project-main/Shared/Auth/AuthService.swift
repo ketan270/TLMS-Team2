@@ -17,6 +17,10 @@ class AuthService: ObservableObject {
     @Published var errorMessage: String?
     @Published var entryPoint: AuthEntryPoint?
 
+    enum AuthEntryPoint {
+        case login
+        case signup
+    }
     
     // 2FA/OTP state
     @Published var pendingEmail: String?

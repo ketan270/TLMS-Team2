@@ -17,115 +17,120 @@ struct LoginView: View {
     @State private var animateGradient = false
     
     var body: some View {
-        ZStack {
-            // Background
-            AppTheme.groupedBackground
-                .ignoresSafeArea()
-            
-            ScrollView {
-                VStack(spacing: 30) {
-                    Spacer(minLength: 60)
-                    
-                    // Logo and title
-                    VStack(spacing: 16) {
-                        Image(systemName: "graduationcap.circle.fill")
-                            .font(.system(size: 80))
-                            .foregroundColor(AppTheme.primaryBlue)
-                            .shadow(color: AppTheme.primaryBlue.opacity(0.3), radius: 10)
+        NavigationStack {
+            ZStack {
+                // Background
+                AppTheme.groupedBackground
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 30) {
+                        Spacer(minLength: 60)
                         
-                        Text("Welcome Back")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundColor(AppTheme.primaryText)
-                        
-                        Text("Sign in to continue learning")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(AppTheme.secondaryText)
-                    }
-                    .padding(.bottom, 20)
-                    
-                    // Login form
-                    VStack(spacing: 20) {
-                        // Email field
-                        CustomTextField(
-                            icon: "envelope.fill",
-                            placeholder: "Email",
-                            text: $email,
-                            isSecure: false
-                        )
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                        
-                        // Password field
-                        CustomTextField(
-                            icon: "lock.fill",
-                            placeholder: "Password",
-                            text: $password,
-                            isSecure: !showPassword,
-                            showPasswordToggle: true,
-                            showPassword: $showPassword
-                        )
-                        
-                        // 2FA Info message
-                        HStack(spacing: 8) {
-                            Image(systemName: "lock.shield.fill")
-                                .foregroundColor(.green.opacity(0.8))
-                            Text("2-Step Verification: Code will be sent to your email")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.8))
-                        }
-                        .padding(.horizontal)
-                        
-                        // Error message
-                        if let errorMessage = authService.errorMessage {
-                            Text(errorMessage)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(AppTheme.errorRed)
-                                .padding(.horizontal)
-                                .multilineTextAlignment(.center)
-                        }
-                        
-                        // Login button
-                        Button(action: {
-                            print("🚀 BUTTON PRESSED!")
-                            handleLogin()
-                        }) {
-                            HStack {
-                                if authService.isLoading {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                } else {
-                                    Text("Sign In")
-                                        .font(.system(size: 18, weight: .semibold))
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(AppTheme.primaryBlue)
-                            .foregroundColor(.white)
-                            .cornerRadius(AppTheme.cornerRadius)
-                            .shadow(color: AppTheme.primaryBlue.opacity(0.3), radius: 8, y: 4)
-                        }
-                        .disabled(authService.isLoading || email.isEmpty || password.isEmpty)
-                        .opacity((authService.isLoading || email.isEmpty || password.isEmpty) ? 0.6 : 1)
-                    }
-                    .padding(.horizontal, 30)
-                    
-                    // Sign up link
-                    HStack(spacing: 4) {
-                        Text("Don't have an account?")
-                            .foregroundColor(AppTheme.secondaryText)
-                        
-                        Button(action: { showSignup = true }) {
-                            Text("Sign Up")
-                                .fontWeight(.semibold)
+                        // Logo and title
+                        VStack(spacing: 16) {
+                            Image(systemName: "graduationcap.circle.fill")
+                                .font(.system(size: 80))
                                 .foregroundColor(AppTheme.primaryBlue)
+                                .shadow(color: AppTheme.primaryBlue.opacity(0.3), radius: 10)
+                            
+                            Text("Welcome Back")
+                                .font(.system(size: 36, weight: .bold, design: .rounded))
+                                .foregroundColor(AppTheme.primaryText)
+                            
+                            Text("Sign in to continue learning")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(AppTheme.secondaryText)
                         }
+                        .padding(.bottom, 20)
+                        
+                        // Login form
+                        VStack(spacing: 20) {
+                            // Email field
+                            CustomTextField(
+                                icon: "envelope.fill",
+                                placeholder: "Email",
+                                text: $email,
+                                isSecure: false
+                            )
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                            
+                            // Password field
+                            CustomTextField(
+                                icon: "lock.fill",
+                                placeholder: "Password",
+                                text: $password,
+                                isSecure: !showPassword,
+                                showPasswordToggle: true,
+                                showPassword: $showPassword
+                            )
+                            
+                            // 2FA Info message
+                            HStack(spacing: 8) {
+                                Image(systemName: "lock.shield.fill")
+                                    .foregroundColor(.green.opacity(0.8))
+                                Text("2-Step Verification: Code will be sent to your email")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(.horizontal)
+                            
+                            // Error message
+                            if let errorMessage = authService.errorMessage {
+                                Text(errorMessage)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(AppTheme.errorRed)
+                                    .padding(.horizontal)
+                                    .multilineTextAlignment(.center)
+                            }
+                            
+                            // Login button
+                            Button(action: {
+                                print("🚀 BUTTON PRESSED!")
+                                handleLogin()
+                            }) {
+                                HStack {
+                                    if authService.isLoading {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Text("Sign In")
+                                            .font(.system(size: 18, weight: .semibold))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(AppTheme.primaryBlue)
+                                .foregroundColor(.white)
+                                .cornerRadius(AppTheme.cornerRadius)
+                                .shadow(color: AppTheme.primaryBlue.opacity(0.3), radius: 8, y: 4)
+                            }
+                            .disabled(authService.isLoading || email.isEmpty || password.isEmpty)
+                            .opacity((authService.isLoading || email.isEmpty || password.isEmpty) ? 0.6 : 1)
+                        }
+                        .padding(.horizontal, 30)
+                        
+                        // Sign up link
+                        HStack(spacing: 4) {
+                            Text("Don't have an account?")
+                                .foregroundColor(AppTheme.secondaryText)
+                            
+                            Button(action: { showSignup = true }) {
+                                Text("Sign Up")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(AppTheme.primaryBlue)
+                            }
+                        }
+                        .font(.system(size: 16))
+                        .padding(.top, 10)
+                        
+                        Spacer(minLength: 40)
                     }
-                    .font(.system(size: 16))
-                    .padding(.top, 10)
-                    
-                    Spacer(minLength: 40)
                 }
+            }
+            .navigationDestination(isPresented: $showSignup) {
+                SignupView()
             }
         }
     }
