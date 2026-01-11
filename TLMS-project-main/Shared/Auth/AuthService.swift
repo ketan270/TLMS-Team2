@@ -15,6 +15,8 @@ class AuthService: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var entryPoint: AuthEntryPoint?
+
     
     // 2FA/OTP state
     @Published var pendingEmail: String?
@@ -28,7 +30,7 @@ class AuthService: ObservableObject {
         // Validate configuration
         guard SupabaseConfig.isConfigured else {
             fatalError("""
-            ⚠️ SUPABASE NOT CONFIGURED ⚠️
+            SUPABASE NOT CONFIGURED
             
             Please follow these steps:
             1. Create a Supabase project at https://supabase.com
@@ -41,14 +43,8 @@ class AuthService: ObservableObject {
             """)
         }
         
-        guard let url = URL(string: SupabaseConfig.supabaseURL) else {
-            fatalError("Invalid Supabase URL: \(SupabaseConfig.supabaseURL)")
-        }
-        
-        self.supabase = SupabaseClient(
-            supabaseURL: url,
-            supabaseKey: SupabaseConfig.supabaseAnonKey
-        )
+        // Use shared client
+        self.supabase = SupabaseManager.shared.client
         
         // Check for existing session
         Task {
@@ -58,22 +54,25 @@ class AuthService: ObservableObject {
     }
     
     // MARK: - Session Management
-    
     func checkSession() async {
         isLoading = true
         defer { isLoading = false }
-        
+
         do {
-            let session = try await supabase.auth.session
-            if session.user != nil {
-                await fetchUserProfile()
+            let _ = try await supabase.auth.session
+
+            if entryPoint == nil {
+                entryPoint = .login
             }
+
+            await fetchUserProfile()
         } catch {
-            print("No active session: \(error.localizedDescription)")
+            print("No active session:", error)
             isAuthenticated = false
+            currentUser = nil
         }
     }
-    
+
     // MARK: - Sign Up
     
     func signUp(email: String, password: String, fullName: String, role: UserRole, resumeData: Data? = nil, resumeFileName: String? = nil) async -> Bool {
@@ -130,7 +129,7 @@ class AuthService: ObservableObject {
                     }
                 }
             }
-            
+            self.entryPoint = .signup
             return true
         } catch {
             errorMessage = "Sign up failed: \(error.localizedDescription)"
@@ -193,15 +192,16 @@ class AuthService: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let session = try await supabase.auth.signIn(
+            let _ = try await supabase.auth.signIn(
                 email: email,
                 password: password
             )
             
             // Fetch user profile
             await fetchUserProfile()
-            
+            self.entryPoint = .login
             return true
+
         } catch {
             errorMessage = "Login failed: \(error.localizedDescription)"
             return false
@@ -218,6 +218,7 @@ class AuthService: ObservableObject {
             try await supabase.auth.signOut()
             currentUser = nil
             isAuthenticated = false
+            entryPoint = nil
         } catch {
             errorMessage = "Sign out failed: \(error.localizedDescription)"
         }
