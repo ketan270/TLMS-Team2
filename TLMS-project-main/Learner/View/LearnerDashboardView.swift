@@ -14,14 +14,17 @@ struct LearnerDashboardView: View {
     @State private var publishedCourses: [Course] = []
     @State private var isLoading = false
     @State private var showProfile = false
+    @Environment(\.colorScheme) var colorScheme
+    @State private var showQuestionnaire = false
+
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 // Adaptive background
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(spacing: 24) {
                         // Welcome header
@@ -29,7 +32,7 @@ struct LearnerDashboardView: View {
                             Text("Welcome back,")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.secondary)
-                            
+
                             Text(user.fullName)
                                 .font(.system(size: 32, weight: .bold, design: .rounded))
                                 .foregroundColor(.primary)
@@ -37,7 +40,7 @@ struct LearnerDashboardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal)
                         .padding(.top, 20)
-                        
+
                         // Quick stats
                         HStack(spacing: 16) {
                             StatCard(
@@ -46,7 +49,7 @@ struct LearnerDashboardView: View {
                                 value: "\(publishedCourses.count)",
                                 color: AppTheme.primaryBlue
                             )
-                            
+
                             StatCard(
                                 icon: "chart.line.uptrend.xyaxis",
                                 title: "Progress",
@@ -55,13 +58,20 @@ struct LearnerDashboardView: View {
                             )
                         }
                         .padding(.horizontal)
-                        
-                        // Course sections
+
+                        // Course section
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Available Courses")
                                 .font(.title2.bold())
                                 .foregroundColor(AppTheme.primaryText)
                                 .padding(.horizontal)
+
+                            EmptyStateView(
+                                icon: "book.closed.fill",
+                                title: "No courses yet",
+                                message: "Start exploring courses to begin your learning journey"
+                            )
+                            .padding(.horizontal)
                             
                             if isLoading {
                                 ProgressView()
@@ -82,7 +92,7 @@ struct LearnerDashboardView: View {
                                 .padding(.horizontal)
                             }
                         }
-                        
+
                         Spacer(minLength: 40)
                     }
                 }
@@ -92,9 +102,20 @@ struct LearnerDashboardView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        Button(action: { showProfile = true }) {
+                        Button {
+                            showQuestionnaire = true
+                        } label: {
+                            Label("Edit Learning Preferences", systemImage: "slider.horizontal.3")
+                        }
+
+                        Divider()
+
+                        Button {
+                            showProfile = true
+                        } label: {
                             Label("Profile", systemImage: "person.circle")
                         }
+
                         
                         Button(action: {
                             Task {
@@ -105,7 +126,7 @@ struct LearnerDashboardView: View {
                         }
                         
                         Divider()
-                        
+
                         Button(role: .destructive, action: handleLogout) {
                             Label("Sign Out", systemImage: "arrow.right.square")
                         }
@@ -116,8 +137,15 @@ struct LearnerDashboardView: View {
                     }
                 }
             }
+            .navigationDestination(isPresented: $showQuestionnaire) {
+                QuestionnaireContainerView(
+                    viewModel: QuestionnaireViewModel(
+                        userId: user.id.uuidString
+                    ),
+                    mode: .edit
+                )
+            }
         }
-        .navigationViewStyle(.stack)
         .id(user.id)
         .task {
             await loadData()
@@ -129,7 +157,7 @@ struct LearnerDashboardView: View {
         publishedCourses = await courseService.fetchPublishedCourses()
         isLoading = false
     }
-    
+
     private func handleLogout() {
         Task {
             await authService.signOut()
@@ -211,15 +239,18 @@ struct StatCard: View {
     let value: String
     let color: Color
     @Environment(\.colorScheme) var colorScheme
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 24))
                 .foregroundColor(color)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(value)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.primary)
+
                     .font(.title2.bold())
                     .foregroundColor(AppTheme.primaryText)
                 
@@ -229,6 +260,16 @@ struct StatCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .shadow(
+                    color: color.opacity(colorScheme == .dark ? 0.3 : 0.15),
+                    radius: 15,
+                    y: 5
+                )
+        )
         .padding(16)
         .background(AppTheme.secondaryGroupedBackground)
         .cornerRadius(AppTheme.cornerRadius)
@@ -243,10 +284,18 @@ struct EmptyStateView: View {
     let title: String
     let message: String
     @Environment(\.colorScheme) var colorScheme
-    
+
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: icon)
+                .font(.system(size: 60))
+                .foregroundColor(.secondary.opacity(0.5))
+
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.primary)
+
                 .font(.system(size: 50))
                 .foregroundColor(AppTheme.secondaryText.opacity(0.5))
             
@@ -263,6 +312,15 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .shadow(
+                    color: .black.opacity(colorScheme == .dark ? 0.3 : 0.05),
+                    radius: 10,
+                    y: 5
+                )
+        )
         .background(AppTheme.secondaryGroupedBackground)
         .cornerRadius(AppTheme.cornerRadius)
         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
@@ -283,4 +341,3 @@ struct EmptyStateView: View {
     ))
     .environmentObject(AuthService())
 }
-
