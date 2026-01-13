@@ -20,6 +20,23 @@ class CourseService: ObservableObject {
         self.supabase = SupabaseManager.shared.client
     }
     
+    func fetchAllActiveCourses() async -> [Course] {
+        do {
+            let response: [Course] = try await supabase
+                .from("courses")
+                .select()
+                .neq("status", value: "removed")
+                .execute()
+                .value
+            return response
+        } catch {
+            print("Error fetching active courses: \(error)")
+            return []
+        }
+    }
+    
+    // MARK: - Legacy / Helper Methods
+    
     // MARK: - Fetch Courses
     
     func fetchCourses(for educatorID: UUID) async -> [Course] {
@@ -127,15 +144,21 @@ class CourseService: ObservableObject {
     
     // MARK: - Status Updates
     
-    func updateCourseStatus(courseID: UUID, status: CourseStatus) async -> Bool {
+    func updateCourseStatus(courseID: UUID, status: CourseStatus, reason: String? = nil) async -> Bool {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         
         do {
+            var updates: [String: AnyJSON] = ["status": .string(status.rawValue)]
+            
+            if let reason = reason {
+                updates["removal_reason"] = .string(reason)
+            }
+            
             try await supabase
                 .from("courses")
-                .update(["status": status.rawValue])
+                .update(updates)
                 .eq("id", value: courseID.uuidString)
                 .execute()
             return true
@@ -170,6 +193,17 @@ class CourseService: ObservableObject {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+        
+        // Verifying course availability
+        if let course = await fetchCourse(by: courseID) {
+            if course.status != .published {
+                errorMessage = "This course is not currently available for enrollment."
+                return false
+            }
+        } else {
+             errorMessage = "Course not found."
+             return false
+        }
         
         do {
             let enrollment = Enrollment(userID: userID, courseID: courseID)
@@ -210,10 +244,6 @@ class CourseService: ObservableObject {
             }
             
             // 2. Fetch courses matching IDs
-            // Supabase "in" filter expects a comma-separated string of values in parens? 
-            // Or simpler to just fetch all and filter client side if list is small?
-            // Better: Use `in` filter correctly.
-            // Supabase Swift client usage for `in`: .in("id", value: [ids])
             
             let courses: [Course] = try await supabase
                 .from("courses")
@@ -225,6 +255,20 @@ class CourseService: ObservableObject {
             return courses
         } catch {
             errorMessage = "Failed to fetch enrolled courses: \(error.localizedDescription)"
+            return []
+        }
+    }
+    
+    func fetchAllEnrollments() async -> [Enrollment] {
+        do {
+            let response: [Enrollment] = try await supabase
+                .from("enrollments")
+                .select()
+                .execute()
+                .value
+            return response
+        } catch {
+            print("Error fetching all enrollments: \(error)")
             return []
         }
     }

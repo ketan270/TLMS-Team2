@@ -83,6 +83,7 @@ struct Course: Identifiable, Codable {
     var rating: Double?
     var price: Double?
     var enrolledCount: Int?
+    var removalReason: String?
     
     // Convenience property for backward compatibility
     var thumbnailUrl: String? {
@@ -105,10 +106,11 @@ struct Course: Identifiable, Codable {
         case rating
         case price
         case enrolledCount = "enrolled_count"
+        case removalReason = "removal_reason"
     }
     
     // Default init
-    init(id: UUID = UUID(), title: String, description: String, category: String, educatorID: UUID, modules: [Module] = [], status: CourseStatus = .draft, courseCoverUrl: String? = nil, level: CourseLevel = .beginner, createdAt: Date = Date(), updatedAt: Date = Date(), rating: Double? = nil, price: Double? = nil, enrolledCount: Int? = nil) {
+    init(id: UUID = UUID(), title: String, description: String, category: String, educatorID: UUID, modules: [Module] = [], status: CourseStatus = .draft, courseCoverUrl: String? = nil, level: CourseLevel = .beginner, createdAt: Date = Date(), updatedAt: Date = Date(), rating: Double? = nil, price: Double? = nil, enrolledCount: Int? = nil, removalReason: String? = nil) {
         self.id = id
         self.title = title
         self.description = description
@@ -123,6 +125,7 @@ struct Course: Identifiable, Codable {
         self.rating = rating
         self.price = price
         self.enrolledCount = enrolledCount
+        self.removalReason = removalReason
     }
     
     // Custom decoding to handle both JSON array and JSON string for modules
@@ -142,6 +145,7 @@ struct Course: Identifiable, Codable {
         rating = try container.decodeIfPresent(Double.self, forKey: .rating)
         price = try container.decodeIfPresent(Double.self, forKey: .price)
         enrolledCount = try container.decodeIfPresent(Int.self, forKey: .enrolledCount)
+        removalReason = try container.decodeIfPresent(String.self, forKey: .removalReason)
         
         // Handle modules being either [Module] or String
         if let modulesArray = try? container.decode([Module].self, forKey: .modules) {

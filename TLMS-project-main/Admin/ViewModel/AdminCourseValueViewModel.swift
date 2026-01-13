@@ -100,13 +100,21 @@ class AdminCourseValueViewModel: ObservableObject {
         }
     }
     
-    func removeCourse(_ course: Course) async {
+    func removeCourse(_ course: Course, reason: String) async {
         isLoading = true
-        // Optimistic UI update could be done here, but let's wait for success for safety
         
-        let success = await courseService.updateCourseStatus(courseID: course.id, status: .removed)
+        // 1. Update DB
+        let success = await courseService.updateCourseStatus(courseID: course.id, status: .removed, reason: reason)
         
         if success {
+            // 2. Mock Email
+            _ = await EmailService.shared.sendRemovalNotification(
+                to: "educator@example.com", // Mock email receipt
+                courseTitle: course.title,
+                reason: reason
+            )
+            
+            // 3. Update UI
             if let index = courses.firstIndex(where: { $0.id == course.id }) {
                 courses.remove(at: index)
             }

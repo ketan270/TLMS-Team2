@@ -12,6 +12,7 @@ struct AdminCourseValueView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var showDeleteAlert = false
     @State private var courseToRemove: Course?
+    @State private var removalReason = ""
     
     var body: some View {
         VStack(spacing: 0) {
@@ -98,6 +99,7 @@ struct AdminCourseValueView: View {
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
                                     courseToRemove = course
+                                    removalReason = ""
                                     showDeleteAlert = true
                                 } label: {
                                     Label("Remove", systemImage: "trash")
@@ -111,16 +113,26 @@ struct AdminCourseValueView: View {
                     await viewModel.loadCourses()
                 }
                 .alert("Remove Course", isPresented: $showDeleteAlert, presenting: courseToRemove) { course in
+                    TextField("Reason for removal", text: $removalReason)
                     Button("Remove", role: .destructive) {
-                        Task {
-                            await viewModel.removeCourse(course)
+                        if !removalReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Task {
+                                await viewModel.removeCourse(course, reason: removalReason)
+                            }
+                        } else {
+                           // Ideally keep alert open or show error, but standard alert dismisses on button tap.
+                           // For now, fail silently (action won't trigger) - standard behavior for basic Input Alerts
+                           // Or better: Re-trigger alert? No, that's bad UX.
+                           // User should see the button disabled but SwiftUI Alert buttons don't support .disabled easily in all versions.
+                           // I will stick to: If empty, nothing happens (course not removed).
                         }
                     }
                     Button("Cancel", role: .cancel) {
                         courseToRemove = nil
+                        removalReason = ""
                     }
                 } message: { course in
-                    Text("Are you sure you want to remove '\(course.title)'? It will be hidden from learners immediately.")
+                    Text("Enter the reason for removing '\(course.title)'. This will be sent to the educator.")
                 }
             }
         }
