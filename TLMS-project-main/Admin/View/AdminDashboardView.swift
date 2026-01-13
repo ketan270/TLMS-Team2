@@ -74,7 +74,7 @@ struct AdminDashboardView: View {
                             if selectedTab == 0 {
                                 pendingEducatorsView
                             } else if selectedTab == 1 {
-                                pendingCoursesView
+                                coursesTabView
                             } else {
                                 allUsersView
                             }
@@ -144,7 +144,29 @@ struct AdminDashboardView: View {
     
     // MARK: - Pending Courses View
     
-    private var pendingCoursesView: some View {
+    @State private var courseTabMode = 0 // 0: Pending, 1: Monitor
+    
+    // MARK: - Courses Tab View
+    
+    private var coursesTabView: some View {
+        VStack(spacing: 16) {
+            // Sub-navigation for Courses
+            Picker("Mode", selection: $courseTabMode) {
+                Text("Pending Review").tag(0)
+                Text("Value Monitor").tag(1)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
+            
+            if courseTabMode == 0 {
+                pendingCoursesList
+            } else {
+                AdminCourseValueView()
+            }
+        }
+    }
+    
+    private var pendingCoursesList: some View {
         VStack(spacing: 16) {
             if isLoading {
                 ProgressView()

@@ -13,6 +13,7 @@ enum CourseStatus: String, Codable, CaseIterable {
     case pendingReview = "pending_review"
     case published = "published"
     case rejected = "rejected"
+    case removed = "removed"
     
     var displayName: String {
         switch self {
@@ -20,6 +21,7 @@ enum CourseStatus: String, Codable, CaseIterable {
         case .pendingReview: return "Pending Review"
         case .published: return "Published"
         case .rejected: return "Rejected"
+        case .removed: return "Removed"
         }
     }
     
@@ -29,6 +31,7 @@ enum CourseStatus: String, Codable, CaseIterable {
         case .pendingReview: return "clock.fill"
         case .published: return "checkmark.circle.fill"
         case .rejected: return "xmark.circle.fill"
+        case .removed: return "trash.fill"
         }
     }
     
@@ -38,6 +41,7 @@ enum CourseStatus: String, Codable, CaseIterable {
         case .pendingReview: return .orange
         case .published: return .green
         case .rejected: return .red
+        case .removed: return .gray
         }
     }
 }
@@ -76,6 +80,10 @@ struct Course: Identifiable, Codable {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
     
+    var rating: Double?
+    var price: Double?
+    var enrolledCount: Int?
+    
     // Convenience property for backward compatibility
     var thumbnailUrl: String? {
         get { courseCoverUrl }
@@ -94,10 +102,13 @@ struct Course: Identifiable, Codable {
         case level
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case rating
+        case price
+        case enrolledCount = "enrolled_count"
     }
     
     // Default init
-    init(id: UUID = UUID(), title: String, description: String, category: String, educatorID: UUID, modules: [Module] = [], status: CourseStatus = .draft, courseCoverUrl: String? = nil, level: CourseLevel = .beginner, createdAt: Date = Date(), updatedAt: Date = Date()) {
+    init(id: UUID = UUID(), title: String, description: String, category: String, educatorID: UUID, modules: [Module] = [], status: CourseStatus = .draft, courseCoverUrl: String? = nil, level: CourseLevel = .beginner, createdAt: Date = Date(), updatedAt: Date = Date(), rating: Double? = nil, price: Double? = nil, enrolledCount: Int? = nil) {
         self.id = id
         self.title = title
         self.description = description
@@ -109,6 +120,9 @@ struct Course: Identifiable, Codable {
         self.level = level
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.rating = rating
+        self.price = price
+        self.enrolledCount = enrolledCount
     }
     
     // Custom decoding to handle both JSON array and JSON string for modules
@@ -125,6 +139,9 @@ struct Course: Identifiable, Codable {
         level = try container.decodeIfPresent(CourseLevel.self, forKey: .level) ?? .beginner
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        rating = try container.decodeIfPresent(Double.self, forKey: .rating)
+        price = try container.decodeIfPresent(Double.self, forKey: .price)
+        enrolledCount = try container.decodeIfPresent(Int.self, forKey: .enrolledCount)
         
         // Handle modules being either [Module] or String
         if let modulesArray = try? container.decode([Module].self, forKey: .modules) {
