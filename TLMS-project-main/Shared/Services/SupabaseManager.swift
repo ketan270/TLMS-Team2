@@ -18,6 +18,7 @@ class SupabaseManager {
             fatalError("Invalid Supabase URL: \(SupabaseConfig.supabaseURL)")
         }
         
+        // Use default configuration which handles session persistence automatically
         self.client = SupabaseClient(
             supabaseURL: url,
             supabaseKey: SupabaseConfig.supabaseAnonKey

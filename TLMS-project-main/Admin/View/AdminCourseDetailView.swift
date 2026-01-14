@@ -63,6 +63,60 @@ struct AdminCourseDetailView: View {
                 .cornerRadius(16)
                 .padding(.horizontal)
                 
+                // Revenue Split Preview
+                if let price = course.price, price > 0 {
+                    let split = RevenueCalculator.calculateSplit(total: price)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Potential Revenue (Per Sale)")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        HStack(spacing: 0) {
+                            VStack(alignment: .leading) {
+                                Text("Price")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(price.formatted(.currency(code: "INR")))
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            Divider()
+                                .frame(height: 30)
+                            
+                            VStack(alignment: .leading) {
+                                Text("Admin (20%)")
+                                    .font(.caption)
+                                    .foregroundColor(AppTheme.primaryBlue)
+                                Text(split.admin.formatted(.currency(code: "INR")))
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(AppTheme.primaryBlue)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, 12)
+                            
+                            Divider()
+                                .frame(height: 30)
+                            
+                            VStack(alignment: .leading) {
+                                Text("Educator (80%)")
+                                    .font(.caption)
+                                    .foregroundColor(.purple)
+                                Text(split.educator.formatted(.currency(code: "INR")))
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.purple)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, 12)
+                        }
+                    }
+                    .padding()
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+                }
+                
                 // Content Preview
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Course Content")

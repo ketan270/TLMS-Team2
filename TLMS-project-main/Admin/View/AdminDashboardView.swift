@@ -13,11 +13,59 @@ struct AdminDashboardView: View {
     @State private var pendingEducators: [User] = []
     @State private var pendingCourses: [Course] = []
     @State private var allUsers: [User] = []
+    @State private var activeCourses: [Course] = []
+    @State private var allEnrollments: [Enrollment] = []
+    
     @State private var isLoading = false
     @State private var selectedTab = 0
     @State private var showProfile = false
+    @State private var selectedTimeFilter: AnalyticsTimeFilter = .last30Days
+    
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var courseService = CourseService()
+    
+    // Feature Flags
+    private let isRevenueEnabled = false
+    
+    // Computed Stats
+    var filteredRevenue: Double {
+        let filtered = allEnrollments.filter {
+            if let date = $0.enrolledAt {
+                return selectedTimeFilter.isDateInPeriod(date)
+            }
+            return false // Exclude if no date (or true for allTime?)
+            // If allTime, we want to include even if nil?
+            // selectedTimeFilter.isDateInPeriod handles logic.
+            // If nil, we can't check. 
+            // Let's assume nil = old or unknown.
+            // If .allTime, we might want everything.
+        }
+        
+        let coursePriceMap = Dictionary(uniqueKeysWithValues: activeCourses.map { ($0.id, $0.price ?? 0) })
+        return filtered.reduce(0) { total, enrollment in
+            total + (coursePriceMap[enrollment.courseID] ?? 0)
+        }
+    }
+    
+    var filteredCoursesCount: Int {
+        // Filter courses by createdAt?
+        // "Total Courses" usually implies *current* inventory. 
+        // But "Filter Analytics" might mean "New courses added in this period"?
+        // Requirement says "Filter dashboard data".
+        // Usually Platform Summary counts stand for "Current State".
+        // Revenue is definitely time-sensitive.
+        // User Growth (Learners/Educators) is time-sensitive (Registered in period).
+        // I will filter Courses and Users by `createdAt`.
+        activeCourses.filter { selectedTimeFilter.isDateInPeriod($0.createdAt) }.count
+    }
+    
+    var filteredLearnersCount: Int {
+        allUsers.filter { $0.role == .learner && selectedTimeFilter.isDateInPeriod($0.createdAt) }.count
+    }
+    
+    var filteredEducatorsCount: Int {
+        allUsers.filter { $0.role == .educator && selectedTimeFilter.isDateInPeriod($0.createdAt) }.count
+    }
     
     var body: some View {
         NavigationView {
@@ -29,52 +77,117 @@ struct AdminDashboardView: View {
                 // Content with scrollable tabs
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Custom tab selector (now scrolls with content)
-                        HStack(spacing: 0) {
-                            TabButton(
-                                title: "Educators",
-                                icon: "person.badge.shield.checkmark.fill",
-                                isSelected: selectedTab == 0,
-                                badge: pendingEducators.count
-                            ) {
-                                withAnimation(.spring(response: 0.3)) {
-                                    selectedTab = 0
+                        // Header & Filter
+                        HStack {
+                            Text("Overview")
+                                .font(.title2.bold())
+                            Spacer()
+                            Picker("Time Period", selection: $selectedTimeFilter) {
+                                ForEach(AnalyticsTimeFilter.allCases) { filter in
+                                    Text(filter.rawValue).tag(filter)
                                 }
                             }
-                            
-                            TabButton(
-                                title: "Courses",
-                                icon: "book.fill",
-                                isSelected: selectedTab == 1,
-                                badge: pendingCourses.count
-                            ) {
-                                withAnimation(.spring(response: 0.3)) {
-                                    selectedTab = 1
-                                }
-                            }
-                            
-                            TabButton(
-                                title: "Users",
-                                icon: "person.3.fill",
-                                isSelected: selectedTab == 2,
-                                badge: nil
-                            ) {
-                                withAnimation(.spring(response: 0.3)) {
-                                    selectedTab = 2
-                                }
-                            }
+                            .pickerStyle(.menu)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 10)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .cornerRadius(8)
                         }
                         .padding(.horizontal)
+                        .padding(.top)
+                        
+                        // Summary Stats
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 16) {
+                                StatCard(
+                                    icon: "banknote.fill",
+                                    title: "Total Revenue",
+                                    value: isRevenueEnabled ? filteredRevenue.formatted(.currency(code: "INR")) : "--",
+                                    color: AppTheme.successGreen
+                                )
+                                .frame(width: 180)
+                                
+                                let split = RevenueCalculator.calculateSplit(total: filteredRevenue)
+                                
+                                StatCard(
+                                    icon: "building.columns.fill",
+                                    title: "Admin (20%)",
+                                    value: isRevenueEnabled ? split.admin.formatted(.currency(code: "INR")) : "--",
+                                    color: AppTheme.primaryBlue
+                                )
+                                .frame(width: 160)
+                                
+                                StatCard(
+                                    icon: "person.crop.circle.badge.checkmark",
+                                    title: "Educators (80%)",
+                                    value: isRevenueEnabled ? split.educator.formatted(.currency(code: "INR")) : "--",
+                                    color: Color.purple
+                                )
+                                .frame(width: 160)
+                                
+                                StatCard(
+                                    icon: "book.fill",
+                                    title: "Courses",
+                                    value: "\(filteredCoursesCount)",
+                                    color: .orange
+                                )
+                                .frame(width: 160)
+                                
+                                StatCard(
+                                    icon: "person.2.fill",
+                                    title: "Learners",
+                                    value: "\(filteredLearnersCount)",
+                                    color: AppTheme.successGreen
+                                )
+                                .frame(width: 160)
+                                
+                                StatCard(
+                                    icon: "graduationcap.fill",
+                                    title: "Educators",
+                                    value: "\(filteredEducatorsCount)",
+                                    color: .orange
+                                )
+                                .frame(width: 160)
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 20)
+                        }
+                        
+                        // Analytics Charts
+                        let split = RevenueCalculator.calculateSplit(total: filteredRevenue)
+                        AdminAnalyticsView(
+                            totalRevenue: filteredRevenue,
+                            adminRevenue: split.admin,
+                            educatorRevenue: split.educator,
+                            totalLearners: filteredLearnersCount,
+                            totalEducators: filteredEducatorsCount,
+                            showRevenue: isRevenueEnabled
+                        )
                         .padding(.top, 20)
+                        
+                        // Tab Selector
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Management")
+                                .font(.title3.bold())
+                                .padding(.horizontal)
+                            
+                            Picker("Section", selection: $selectedTab) {
+                                Text("Educators (\(pendingEducators.count))").tag(0)
+                                Text("Courses (\(pendingCourses.count))").tag(1)
+                                Text("Users").tag(2)
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal)
+                        }
+                        .padding(.top, 24)
                         .padding(.bottom, 10)
-                        .background(AppTheme.groupedBackground)
                         
                         // Tab content
                         VStack(spacing: 20) {
                             if selectedTab == 0 {
                                 pendingEducatorsView
                             } else if selectedTab == 1 {
-                                pendingCoursesView
+                                coursesTabView
                             } else {
                                 allUsersView
                             }
@@ -144,7 +257,29 @@ struct AdminDashboardView: View {
     
     // MARK: - Pending Courses View
     
-    private var pendingCoursesView: some View {
+    @State private var courseTabMode = 0 // 0: Pending, 1: Monitor
+    
+    // MARK: - Courses Tab View
+    
+    private var coursesTabView: some View {
+        VStack(spacing: 16) {
+            // Sub-navigation for Courses
+            Picker("Mode", selection: $courseTabMode) {
+                Text("Pending Review").tag(0)
+                Text("Value Monitor").tag(1)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
+            
+            if courseTabMode == 0 {
+                pendingCoursesList
+            } else {
+                AdminCourseValueView()
+            }
+        }
+    }
+    
+    private var pendingCoursesList: some View {
         VStack(spacing: 16) {
             if isLoading {
                 ProgressView()
@@ -200,10 +335,17 @@ struct AdminDashboardView: View {
         async let pending = authService.fetchPendingEducators()
         async let all = authService.fetchAllUsers()
         async let courses = courseService.fetchPendingCourses()
+        async let activeCourses = courseService.fetchAllActiveCourses()
+        async let allEnrollments = courseService.fetchAllEnrollments()
         
-        pendingEducators = await pending
-        allUsers = await all
-        pendingCourses = await courses
+        let (pendingRes, allRes, coursesRes, activeRes, enrollmentsRes) = await (pending, all, courses, activeCourses, allEnrollments)
+        
+        pendingEducators = pendingRes
+        allUsers = allRes
+        pendingCourses = coursesRes
+        self.activeCourses = activeRes
+        self.allEnrollments = enrollmentsRes
+        
         isLoading = false
     }
     
