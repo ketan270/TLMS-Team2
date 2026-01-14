@@ -80,7 +80,8 @@ struct LearnerDashboardView: View {
                             ForEach(CourseCategories.all, id: \.self) { category in
                                 NavigationLink(destination: CategoryCoursesView(
                                     category: category,
-                                    courses: publishedCourses.filter { $0.category == category }
+                                    courses: publishedCourses.filter { $0.category == category },
+                                    userId: user.id
                                 )) {
                                     CategoryCard(
                                         title: category,
@@ -247,6 +248,7 @@ struct LearnerDashboardView: View {
                                                             LearnerCourseDetailView(
                                                                 course: course,
                                                                 isEnrolled: isEnrolled(course),
+                                                                userId: user.id,
                                                                 onEnroll: {
                                                                     await enroll(course: course)
                                                                 }
@@ -713,6 +715,7 @@ struct CategoryCard: View {
 struct CategoryCoursesView: View {
     let category: String
     let courses: [Course]
+    let userId: UUID
     @Environment(\.dismiss) var dismiss
     @StateObject private var courseService = CourseService()
     @State private var enrolledCourseIds: Set<UUID> = []
@@ -737,6 +740,7 @@ struct CategoryCoursesView: View {
                                 LearnerCourseDetailView(
                                     course: course,
                                     isEnrolled: enrolledCourseIds.contains(course.id),
+                                    userId: userId,
                                     onEnroll: {}
                                 )
                             ) {
