@@ -32,10 +32,10 @@ struct LearnerDashboardView: View {
                     VStack(spacing: 24) {
                         // Welcome header
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Welcome back,")
+                            Text(authService.entryPoint == .signup ? "Welcome," : "Welcome back,")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.secondary)
-
+                            
                             Text(user.fullName)
                                 .font(.system(size: 32, weight: .bold, design: .rounded))
                                 .foregroundColor(.primary)
