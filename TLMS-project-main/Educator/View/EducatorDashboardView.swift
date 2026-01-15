@@ -128,7 +128,8 @@ struct EducatorDashboardView: View {
             
             // Welcome Text
             VStack(alignment: .leading, spacing: 4) {
-                Text("Welcome back,")
+                Text(authService.entryPoint == .signup ? "Welcome," : "Welcome back,")
+
                     .font(.subheadline)
                     .foregroundColor(AppTheme.secondaryText)
                 

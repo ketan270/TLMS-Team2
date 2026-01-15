@@ -145,7 +145,7 @@ struct LearnerDashboardView: View {
                     VStack(spacing: 20) {
                         // Welcome header
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Welcome back,")
+                            Text(authService.entryPoint == .signup ? "Welcome," : "Welcome back,")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.secondary)
                             
@@ -243,6 +243,17 @@ struct LearnerDashboardView: View {
                                     .padding(.horizontal)
                                 } else {
                                     LazyVStack(spacing: 16) {
+<<<<<<< HEAD
+                                        ForEach(coursesToShow) { course in
+                                            NavigationLink(destination:
+                                                LearnerCourseDetailView(
+                                                    course: course,
+                                                    isEnrolled: isEnrolled(course),
+                                                    onEnroll: {
+                                                        await enroll(course: course)
+                                                    }
+                                                )
+=======
                                         ForEach(filteredCourses) { course in
                                             NavigationLink(destination:
                                                             LearnerCourseDetailView(
@@ -253,6 +264,7 @@ struct LearnerDashboardView: View {
                                                                     await enroll(course: course)
                                                                 }
                                                             )
+>>>>>>> 97c6b8651aa3899687786e2dd52f87fad629a2b2
                                             ) {
                                                 PublishedCourseCard(
                                                     course: course,
