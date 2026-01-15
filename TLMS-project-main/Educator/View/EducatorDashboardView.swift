@@ -45,7 +45,7 @@ struct EducatorDashboardView: View {
                             // Ongoing Courses
                             coursesSection
                             
-                            // Primary CTA
+                            // Primary CTAs
                             createCourseButton
                         }
                         
@@ -108,6 +108,7 @@ struct EducatorDashboardView: View {
                 }
             }
         }
+
     }
     
     // MARK: - Header Section
@@ -234,7 +235,7 @@ struct EducatorDashboardView: View {
             Button(viewModel.courseToDelete?.status == .pendingReview ? "Retract" : "Delete", role: .destructive) {
                 if let course = viewModel.courseToDelete {
                     Task {
-                        _ = await viewModel.deleteCourse(course)
+                        await viewModel.deleteCourse(course)
                         viewModel.courseToDelete = nil
                     }
                 }
@@ -255,7 +256,7 @@ struct EducatorDashboardView: View {
             Button("Unpublish", role: .destructive) {
                 if let course = viewModel.courseToUnpublish {
                     Task {
-                        _ = await viewModel.unpublishCourse(course)
+                        await viewModel.unpublishCourse(course)
                         viewModel.courseToUnpublish = nil
                     }
                 }
@@ -289,6 +290,10 @@ struct EducatorDashboardView: View {
         }
         .padding(.top, 8)
     }
+    
+
+    
+
     
     private func handleLogout() {
         Task {
@@ -521,6 +526,9 @@ struct RejectedBanner: View {
         .shadow(color: .red.opacity(0.2), radius: 15, y: 5)
     }
 }
+
+
+
 
 #Preview {
     EducatorDashboardView(user: User(

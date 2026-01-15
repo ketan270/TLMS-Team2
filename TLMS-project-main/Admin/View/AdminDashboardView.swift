@@ -13,181 +13,74 @@ struct AdminDashboardView: View {
     @State private var pendingEducators: [User] = []
     @State private var pendingCourses: [Course] = []
     @State private var allUsers: [User] = []
+    @State private var activeCourses: [Course] = []
+    @State private var allEnrollments: [Enrollment] = []
+    
     @State private var isLoading = false
-    @State private var selectedTab = 0
     @State private var showProfile = false
+    
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var courseService = CourseService()
     
+    // Feature Flags
+    private let isRevenueEnabled = true
+    
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Adaptive background
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    // Custom tab selector
-                    HStack(spacing: 0) {
-                        TabButton(
-                            title: "Educators",
-                            icon: "person.badge.shield.checkmark.fill",
-                            isSelected: selectedTab == 0,
-                            badge: pendingEducators.count
-                        ) {
-                            withAnimation(.spring(response: 0.3)) {
-                                selectedTab = 0
-                            }
-                        }
-                        
-                        TabButton(
-                            title: "Courses",
-                            icon: "book.fill",
-                            isSelected: selectedTab == 1,
-                            badge: pendingCourses.count
-                        ) {
-                            withAnimation(.spring(response: 0.3)) {
-                                selectedTab = 1
-                            }
-                        }
-                        
-                        TabButton(
-                            title: "Users",
-                            icon: "person.3.fill",
-                            isSelected: selectedTab == 2,
-                            badge: nil
-                        ) {
-                            withAnimation(.spring(response: 0.3)) {
-                                selectedTab = 2
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 20)
-                    .background(AppTheme.groupedBackground)
-                    
-                    // Content
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            if selectedTab == 0 {
-                                pendingEducatorsView
-                            } else if selectedTab == 1 {
-                                pendingCoursesView
-                            } else {
-                                allUsersView
-                            }
-                        }
-                        .padding()
-                    }
-                }
+        TabView {
+            // MARK: - Overview Tab
+            AdminOverviewView(
+                activeCourses: activeCourses,
+                allEnrollments: allEnrollments,
+                allUsers: allUsers,
+                isRevenueEnabled: isRevenueEnabled,
+                onRefresh: { await loadData() },
+                onLogout: handleLogout
+            )
+            .tabItem {
+                Label("Overview", systemImage: "chart.pie.fill")
             }
-            .navigationTitle("Admin Dashboard")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: { showProfile = true }) {
-                            Label("Profile", systemImage: "person.circle")
-                        }
-                        
-                        Button(action: refreshData) {
-                            Label("Refresh", systemImage: "arrow.clockwise")
-                        }
-                        
-                        Divider()
-                        
-                        Button(role: .destructive, action: handleLogout) {
-                            Label("Sign Out", systemImage: "arrow.right.square")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(AppTheme.primaryBlue)
-                    }
-                }
+            .tag(0)
+            
+            // MARK: - Educators Tab
+            AdminEducatorsView(
+                pendingEducators: pendingEducators,
+                isLoading: isLoading,
+                onApprove: approveEducator,
+                onReject: rejectEducator
+            )
+            .tabItem {
+                Label("Educators", systemImage: "person.2.badge.gearshape.fill")
             }
+            .badge(pendingEducators.count)
+            .tag(1)
+            
+            // MARK: - Courses Tab
+            AdminCoursesView(
+                pendingCourses: pendingCourses,
+                isLoading: isLoading,
+                onReload: { await loadData() }
+            )
+            .tabItem {
+                Label("Courses", systemImage: "book.fill")
+            }
+            .badge(pendingCourses.count)
+            .tag(2)
+            
+            // MARK: - Users Tab
+            AdminUsersView(
+                allUsers: allUsers,
+                isLoading: isLoading
+            )
+            .tabItem {
+                Label("Users", systemImage: "person.3.fill")
+            }
+            .tag(3)
         }
-        .navigationViewStyle(.stack)
-        .id(user.id)
         .task {
             await loadData()
         }
-    }
-    
-    // MARK: - Pending Educators View
-    
-    private var pendingEducatorsView: some View {
-        VStack(spacing: 16) {
-            if isLoading {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .padding(40)
-            } else if pendingEducators.isEmpty {
-                EmptyStateView(
-                    icon: "checkmark.circle.fill",
-                    title: "No pending educators",
-                    message: "All educator requests have been reviewed"
-                )
-            } else {
-                ForEach(pendingEducators) { educator in
-                    PendingEducatorCard(educator: educator) {
-                        await approveEducator(educator)
-                    } onReject: {
-                        await rejectEducator(educator)
-                    }
-                }
-            }
-        }
-    }
-    
-    // MARK: - Pending Courses View
-    
-    private var pendingCoursesView: some View {
-        VStack(spacing: 16) {
-            if isLoading {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .padding(40)
-            } else if pendingCourses.isEmpty {
-                EmptyStateView(
-                    icon: "book.closed.fill",
-                    title: "No pending courses",
-                    message: "All course submissions have been reviewed"
-                )
-            } else {
-                ForEach(pendingCourses) { course in
-                    NavigationLink(destination: AdminCourseDetailView(course: course, onStatusChange: {
-                        Task {
-                            await loadData()
-                        }
-                    })) {
-                        PendingCourseCard(course: course)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-        }
-    }
-    
-    // MARK: - All Users View
-    
-    private var allUsersView: some View {
-        VStack(spacing: 16) {
-            if isLoading {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .padding(40)
-            } else if allUsers.isEmpty {
-                EmptyStateView(
-                    icon: "person.3.fill",
-                    title: "No users yet",
-                    message: "Users will appear here once they sign up"
-                )
-            } else {
-                ForEach(allUsers) { user in
-                    UserCard(user: user)
-                }
-            }
+        .onChange(of: authService.currentUser?.id) { _ in
+            Task { await loadData() }
         }
     }
     
@@ -198,17 +91,18 @@ struct AdminDashboardView: View {
         async let pending = authService.fetchPendingEducators()
         async let all = authService.fetchAllUsers()
         async let courses = courseService.fetchPendingCourses()
+        async let activeCourses = courseService.fetchAllActiveCourses()
+        async let allEnrollments = courseService.fetchAllEnrollments()
         
-        pendingEducators = await pending
-        allUsers = await all
-        pendingCourses = await courses
+        let (pendingRes, allRes, coursesRes, activeRes, enrollmentsRes) = await (pending, all, courses, activeCourses, allEnrollments)
+        
+        pendingEducators = pendingRes
+        allUsers = allRes
+        pendingCourses = coursesRes
+        self.activeCourses = activeRes
+        self.allEnrollments = enrollmentsRes
+        
         isLoading = false
-    }
-    
-    private func refreshData() {
-        Task {
-            await loadData()
-        }
     }
     
     // MARK: - Actions
@@ -277,46 +171,6 @@ struct PendingCourseCard: View {
         .background(AppTheme.secondaryGroupedBackground)
         .cornerRadius(AppTheme.cornerRadius)
         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-    }
-}
-
-// MARK: - Tab Button Component
-
-struct TabButton: View {
-    let title: String
-    let icon: String
-    let isSelected: Bool
-    let badge: Int?
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
-                    
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                    
-                    if let badge = badge, badge > 0 {
-                        Text("\(badge)")
-                            .font(.caption.bold())
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.warningOrange)
-                            .clipShape(Capsule())
-                    }
-                }
-                .foregroundColor(isSelected ? AppTheme.primaryBlue : AppTheme.secondaryText)
-                
-                Rectangle()
-                    .fill(isSelected ? AppTheme.primaryBlue : Color.clear)
-                    .frame(height: 3)
-            }
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -546,6 +400,32 @@ struct UserCard: View {
         case .pending: return .orange
         case .rejected: return .red
         }
+    }
+}
+
+// MARK: - Empty State View
+
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    let message: String
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            
+            Text(title)
+                .font(.title2.bold())
+                .foregroundColor(.primary)
+            
+            Text(message)
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(40)
     }
 }
 

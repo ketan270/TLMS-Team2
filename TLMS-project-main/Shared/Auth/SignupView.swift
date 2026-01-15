@@ -278,8 +278,9 @@ struct SignupView: View {
             return
         }
         
-        guard email.contains("@") && email.contains(".") else {
-            validationError = "Please enter a valid email address"
+        // Use AuthService email validation
+        guard authService.isValidEmail(email) else {
+            validationError = authService.errorMessage ?? "Please enter a valid email address"
             return
         }
         
@@ -361,4 +362,3 @@ struct RoleButton: View {
     SignupView()
         .environmentObject(AuthService())
 }
-

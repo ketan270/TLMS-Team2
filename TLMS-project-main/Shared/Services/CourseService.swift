@@ -70,7 +70,8 @@ class CourseService: ObservableObject {
         print("DEBUG: Fetching published courses...")
         
         do {
-            let courses: [Course] = try await supabase
+            // First, fetch all published courses
+            var courses: [Course] = try await supabase
                 .from("courses")
                 .select()
                 .eq("status", value: "published")
@@ -79,6 +80,26 @@ class CourseService: ObservableObject {
                 .value
             
             print("DEBUG: Fetched \(courses.count) published courses")
+            
+            // Then, fetch all enrollments to calculate counts
+            let enrollments: [Enrollment] = try await supabase
+                .from("enrollments")
+                .select()
+                .execute()
+                .value
+            
+            // Count enrollments per course
+            var enrollmentCounts: [UUID: Int] = [:]
+            for enrollment in enrollments {
+                enrollmentCounts[enrollment.courseID, default: 0] += 1
+            }
+            
+            // Update courses with enrollment counts
+            for i in 0..<courses.count {
+                courses[i].enrollmentCount = enrollmentCounts[courses[i].id] ?? 0
+            }
+            
+            print("DEBUG: Updated enrollment counts for courses")
             return courses
         } catch {
             print("DEBUG: Error fetching courses: \(error)")
@@ -127,15 +148,26 @@ class CourseService: ObservableObject {
     
     // MARK: - Status Updates
     
-    func updateCourseStatus(courseID: UUID, status: CourseStatus) async -> Bool {
+    func updateCourseStatus(courseID: UUID, status: CourseStatus, reason: String? = nil) async -> Bool {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         
         do {
+            // Create encodable update struct
+            struct CourseStatusUpdate: Encodable {
+                let status: String
+                let removal_reason: String?
+            }
+            
+            let updateData = CourseStatusUpdate(
+                status: status.rawValue,
+                removal_reason: reason
+            )
+            
             try await supabase
                 .from("courses")
-                .update(["status": status.rawValue])
+                .update(updateData)
                 .eq("id", value: courseID.uuidString)
                 .execute()
             return true
@@ -210,21 +242,75 @@ class CourseService: ObservableObject {
             }
             
             // 2. Fetch courses matching IDs
-            // Supabase "in" filter expects a comma-separated string of values in parens? 
-            // Or simpler to just fetch all and filter client side if list is small?
-            // Better: Use `in` filter correctly.
-            // Supabase Swift client usage for `in`: .in("id", value: [ids])
-            
-            let courses: [Course] = try await supabase
+            var courses: [Course] = try await supabase
                 .from("courses")
                 .select()
-                .in("id", value: courseIDs.map { $0.uuidString })
+                .in("id", values: courseIDs.map { $0.uuidString })
                 .execute()
                 .value
+            
+            // 3. Fetch all enrollments to calculate counts
+            let allEnrollments: [Enrollment] = try await supabase
+                .from("enrollments")
+                .select()
+                .execute()
+                .value
+            
+            // Count enrollments per course
+            var enrollmentCounts: [UUID: Int] = [:]
+            for enrollment in allEnrollments {
+                enrollmentCounts[enrollment.courseID, default: 0] += 1
+            }
+            
+            // Update courses with enrollment counts
+            for i in 0..<courses.count {
+                courses[i].enrollmentCount = enrollmentCounts[courses[i].id] ?? 0
+            }
             
             return courses
         } catch {
             errorMessage = "Failed to fetch enrolled courses: \(error.localizedDescription)"
+            return []
+        }
+    }
+    
+    // MARK: - Admin Analytics Methods
+    
+    func fetchAllActiveCourses() async -> [Course] {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            let courses: [Course] = try await supabase
+                .from("courses")
+                .select()
+                .eq("status", value: "published")
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+            return courses
+        } catch {
+            errorMessage = "Failed to fetch active courses: \(error.localizedDescription)"
+            return []
+        }
+    }
+    
+    func fetchAllEnrollments() async -> [Enrollment] {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            let enrollments: [Enrollment] = try await supabase
+                .from("enrollments")
+                .select()
+                .execute()
+                .value
+            return enrollments
+        } catch {
+            print("❌ Error fetching enrollments: \(error)") // Added debug print
+            errorMessage = "Failed to fetch enrollments: \(error.localizedDescription)"
             return []
         }
     }
@@ -249,5 +335,6 @@ struct Enrollment: Codable {
     init(userID: UUID, courseID: UUID) {
         self.userID = userID
         self.courseID = courseID
+        self.enrolledAt = Date()
     }
 }

@@ -66,6 +66,18 @@ struct LoginView: View {
                                 showPassword: $showPassword
                             )
                             
+<<<<<<< HEAD
+=======
+                            // 2FA Info message
+                            HStack(spacing: 8) {
+                                Image(systemName: "lock.shield.fill")
+                                    .foregroundColor(.green.opacity(0.8))
+                                Text("2-Step Verification: Code will be sent to your email")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(AppTheme.secondaryText)
+                            }
+                            .padding(.horizontal)
+>>>>>>> 97c6b8651aa3899687786e2dd52f87fad629a2b2
                             
                             // Error message
                             if let errorMessage = authService.errorMessage {
@@ -128,13 +140,10 @@ struct LoginView: View {
     
     private func handleLogin() {
         Task {
-            print("� Starting 2FA login...")
+            print("🔐 Starting 2FA login...")
             
-            // Store password for later verification
-            authService.setPendingPassword(password)
-            
-            // Send OTP - AuthenticationView will show OTP screen automatically
-            let success = await authService.sendOTP(email: email)
+            // Send OTP - password will be verified first
+            let success = await authService.sendOTP(email: email, password: password)
             print("📧 OTP sent: \(success)")
         }
     }
