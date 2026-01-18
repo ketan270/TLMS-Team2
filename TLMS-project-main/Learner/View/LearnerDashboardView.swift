@@ -9,45 +9,16 @@ import SwiftUI
 
 struct LearnerDashboardView: View {
     let user: User
+
     @EnvironmentObject var authService: AuthService
     @StateObject private var viewModel = LearnerDashboardViewModel()
-   
-    @State private var selectedTab = 0 // 0: Browse, 1: My Courses
+
+    @State private var selectedTab: Int = 0
     @State private var searchText: String = ""
     @State private var selectedCategory: String? = nil
-    
-    @State private var showProfile = false
-    @Environment(\.colorScheme) var colorScheme
-    
+
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Browse Courses Tab
-            courseListView(courses: publishedCourses, title: "Browse Courses", showSearch: false)
-                .tabItem {
-                    Label("Browse", systemImage: "book.fill")
-                }
-                .tag(0)
-            
-            // My Courses Tab
-            courseListView(courses: enrolledCourses, title: "My Courses", showSearch: false)
-                .tabItem {
-                    Label("My Courses", systemImage: "person.fill")
-                }
-                .tag(1)
-            
-            // Search Tab
-            searchView()
-                .tabItem {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                .tag(2)
-            
-            // Profile Tab
-            ProfileView(user: user)
-                .tabItem {
-                    Label("Profile", systemImage: "person.crop.circle")
-                }
-                .tag(3)
 
             // MARK: - Browse Courses Tab
             LearnerCourseListView(
@@ -64,6 +35,9 @@ struct LearnerDashboardView: View {
                 },
                 onEnroll: { course in
                     await viewModel.enroll(course: course, userId: user.id)
+                },
+                onSortChange: { option in
+                    viewModel.selectedSortOption = option
                 },
                 onLogout: handleLogout
             )
@@ -84,6 +58,7 @@ struct LearnerDashboardView: View {
                 searchText: searchText,
                 isEnrolled: { _ in true },
                 onEnroll: { _ in },
+                onSortChange: { _ in }, // no sorting needed here
                 onLogout: handleLogout
             )
             .tabItem {
@@ -109,19 +84,37 @@ struct LearnerDashboardView: View {
                 Label("Search", systemImage: "magnifyingglass")
             }
             .tag(2)
+
+            // MARK: - Profile Tab
+            ProfileView(user: user)
+                .tabItem {
+                    Label("Profile", systemImage: "person.crop.circle")
+                }
+                .tag(3)
         }
         .tint(AppTheme.primaryBlue)
+
+        // Initial load
         .task {
             await viewModel.loadData(userId: user.id)
         }
+
+        // Refresh after payment / return
+        .onAppear {
+            Task {
+                await viewModel.loadData(userId: user.id)
+            }
+        }
+
+        // Error handling
         .alert("Error", isPresented: $viewModel.showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Failed to enroll in course")
         }
     }
-    
-    // MARK: - Logout (still belongs to the View)
+
+    // MARK: - Logout
     private func handleLogout() {
         Task {
             await authService.signOut()

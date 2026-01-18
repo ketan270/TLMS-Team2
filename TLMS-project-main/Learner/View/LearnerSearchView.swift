@@ -109,14 +109,19 @@ struct LearnerSearchView: View {
                                 LazyVStack(spacing: 16) {
                                     ForEach(filteredCourses) { course in
                                         NavigationLink(
-                                            destination: LearnerCourseDetailView(
-                                                course: course,
-                                                isEnrolled: isEnrolled(course),
-                                                userId: user.id,
-                                                onEnroll: {
-                                                    await enroll(course)
-                                                }
-                                            )
+                                            destination:
+                                                LearnerCourseDetailView(
+                                                    course: course,
+                                                    isEnrolled: isEnrolled(course),
+                                                    userId: user.id,
+                                                    onEnroll: {
+                                                        await enroll(course)
+                                                    },
+                                                    onPaymentSuccess: {
+                                                        // ✅ no-op
+                                                        // dashboard refresh handled in LearnerDashboardView.onAppear
+                                                    }
+                                                )
                                         ) {
                                             PublishedCourseCard(
                                                 course: course,
