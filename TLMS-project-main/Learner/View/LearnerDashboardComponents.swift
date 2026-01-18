@@ -138,10 +138,7 @@ struct CategoryCoursesView: View {
                                         course: course,
                                         isEnrolled: enrolledCourseIds.contains(course.id),
                                         userId: userId,
-                                        onEnroll: {},
-                                        onPaymentSuccess: {
-                                           
-                                        }
+                                        onEnroll: {}
                                     )
                             ) {
                                 CategoryCourseCard(
@@ -160,4 +157,3 @@ struct CategoryCoursesView: View {
         .navigationBarTitleDisplayMode(.large)
     }
 }
-
