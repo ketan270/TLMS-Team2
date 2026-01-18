@@ -21,6 +21,33 @@ struct LearnerDashboardView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
+            // Browse Courses Tab
+            courseListView(courses: publishedCourses, title: "Browse Courses", showSearch: false)
+                .tabItem {
+                    Label("Browse", systemImage: "book.fill")
+                }
+                .tag(0)
+            
+            // My Courses Tab
+            courseListView(courses: enrolledCourses, title: "My Courses", showSearch: false)
+                .tabItem {
+                    Label("My Courses", systemImage: "person.fill")
+                }
+                .tag(1)
+            
+            // Search Tab
+            searchView()
+                .tabItem {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                .tag(2)
+            
+            // Profile Tab
+            ProfileView(user: user)
+                .tabItem {
+                    Label("Profile", systemImage: "person.crop.circle")
+                }
+                .tag(3)
 
             // MARK: - Browse Courses Tab
             LearnerCourseListView(
