@@ -19,6 +19,7 @@ struct LearnerCourseListView: View {
 
     let isEnrolled: (Course) -> Bool
     let onEnroll: (Course) async -> Void
+    let onSortChange: (CourseSortOption) -> Void
     let onLogout: () -> Void
 
     var body: some View {
@@ -45,6 +46,24 @@ struct LearnerCourseListView: View {
                             enrolledCount: enrolledCourses.count
                         )
 
+                        // MARK: - Sort Options (Browse only)
+                        if title == "Browse Courses" {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(CourseSortOption.allCases, id: \.self) { option in
+                                        SortOptionButton(
+                                            option: option,
+                                            isSelected: selectedSortOption == option,
+                                            action: {
+                                                onSortChange(option)
+                                            }
+                                        )
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+
                         // MARK: - Course List
                         VStack(alignment: .leading, spacing: 16) {
                             Text(title)
@@ -65,14 +84,19 @@ struct LearnerCourseListView: View {
                                 LazyVStack(spacing: 16) {
                                     ForEach(filteredCourses) { course in
                                         NavigationLink(
-                                            destination: LearnerCourseDetailView(
-                                                course: course,
-                                                isEnrolled: isEnrolled(course),
-                                                userId: user.id,
-                                                onEnroll: {
-                                                    await onEnroll(course)
-                                                }
-                                            )
+                                            destination:
+                                                LearnerCourseDetailView(
+                                                    course: course,
+                                                    isEnrolled: isEnrolled(course),
+                                                    userId: user.id,
+                                                    onEnroll: {
+                                                        await onEnroll(course)
+                                                    },
+                                                    onPaymentSuccess: {
+                                                        // no-op
+                                                        // dashboard refresh handled elsewhere
+                                                    }
+                                                )
                                         ) {
                                             PublishedCourseCard(
                                                 course: course,
@@ -94,13 +118,6 @@ struct LearnerCourseListView: View {
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(role: .destructive, action: onLogout) {
-                        Label("Sign Out", systemImage: "arrow.right.square")
-                    }
-                }
-            }
         }
         .id(user.id)
     }
