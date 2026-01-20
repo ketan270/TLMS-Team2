@@ -362,6 +362,30 @@ class CourseService: ObservableObject {
         }
     }
     
+    // MARK: - Check completion status
+    func isLessonCompleted(userId: UUID, courseId: UUID, lessonId: UUID) async -> Bool {
+        do {
+            struct CompletionRow: Decodable {
+                let lesson_id: UUID
+            }
+
+            let rows: [CompletionRow] = try await supabase
+                .from("lesson_completions")
+                .select("lesson_id")
+                .eq("user_id", value: userId.uuidString)
+                .eq("course_id", value: courseId.uuidString)
+                .eq("lesson_id", value: lessonId.uuidString)
+                .execute()
+                .value
+
+            return !rows.isEmpty
+        } catch {
+            print("❌ Failed to check lesson completion: \(error)")
+            return false
+        }
+    }
+
+    
     /// Update course progress based on completed lessons
     func updateCourseProgress(userId: UUID, courseId: UUID) async {
         do {
