@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Supabase
 
 struct LearnerDashboardView: View {
     let user: User
@@ -421,7 +422,6 @@ struct LearnerDashboardView: View {
         @State private var showSuccess = false
         @State private var showPaymentRequired = false
         @State private var courseProgress: Double = 0.0
-        @StateObject private var courseService = CourseService()
         
         // Fallbacks for category styling
         private var categoryColor: Color {
@@ -653,8 +653,32 @@ struct LearnerDashboardView: View {
         
         private func loadProgress() {
             Task {
-                courseProgress = await courseService.getCourseProgress(userId: userId, courseId: course.id)
+                courseProgress = await getCourseProgress(userId: userId, courseId: course.id)
                 print("📊 Loaded progress for \(course.title): \(courseProgress * 100)%")
+            }
+        }
+        
+        private func getCourseProgress(userId: UUID, courseId: UUID) async -> Double {
+            do {
+                let supabase = SupabaseManager.shared.client
+                
+                // Fetch enrollment to get progress
+                struct EnrollmentProgress: Codable {
+                    let progress: Double?
+                }
+                
+                let enrollments: [EnrollmentProgress] = try await supabase
+                    .from("enrollments")
+                    .select("progress")
+                    .eq("user_id", value: userId.uuidString)
+                    .eq("course_id", value: courseId.uuidString)
+                    .execute()
+                    .value
+                
+                return enrollments.first?.progress ?? 0.0
+            } catch {
+                print("❌ Error fetching progress: \(error)")
+                return 0.0
             }
         }
     }
