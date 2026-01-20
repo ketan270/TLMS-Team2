@@ -49,6 +49,11 @@ struct CertificateView: View {
         .onAppear {
             generateCertificateImage()
         }
+        .alert("Certificate Saved", isPresented: $showDownloadSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("The certificate has been saved to your Photos library.")
+        }
     }
     
     // MARK: - Certificate Card
@@ -167,6 +172,8 @@ struct CertificateView: View {
         }
     }
     
+    @State private var showDownloadSuccess = false
+
     private func downloadCertificate() {
         guard let image = certificateImage else { return }
         
@@ -177,8 +184,8 @@ struct CertificateView: View {
         // Save to photo library
         UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
         
-        // Show success (in a real app, you'd show a proper alert)
-        print("✅ Certificate saved to Photos")
+        // Show success
+        showDownloadSuccess = true
     }
 }
 
@@ -301,6 +308,8 @@ struct CertificateCard: View {
         .pressableScale()
     }
 }
+
+
 
 #Preview {
     NavigationView {
