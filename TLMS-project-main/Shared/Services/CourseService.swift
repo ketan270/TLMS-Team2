@@ -11,7 +11,7 @@ import Combine
 
 @MainActor
 class CourseService: ObservableObject {
-    private let supabase: SupabaseClient
+    let supabase: SupabaseClient
     
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -204,19 +204,32 @@ class CourseService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            // First check if already enrolled
+            let existing: [Enrollment] = try await supabase
+                .from("enrollments")
+                .select()
+                .eq("user_id", value: userID)
+                .eq("course_id", value: courseID)
+                .execute()
+                .value
+            
+            if !existing.isEmpty {
+                print("ℹ️ User already enrolled in this course")
+                return true // Already enrolled, return success
+            }
+            
+            // Create new enrollment
             let enrollment = Enrollment(userID: userID, courseID: courseID)
             try await supabase
                 .from("enrollments")
                 .insert(enrollment)
                 .execute()
+            
+            print("✅ Successfully enrolled in course")
             return true
         } catch {
-            // Check for duplicate key error (already enrolled)
-            if error.localizedDescription.contains("duplicate key") {
-                 errorMessage = "You are already enrolled in this course."
-            } else {
-                errorMessage = "Failed to enroll: \(error.localizedDescription)"
-            }
+            print("❌ Enrollment error: \(error)")
+            errorMessage = "Failed to enroll: \(error.localizedDescription)"
             return false
         }
     }
@@ -354,11 +367,59 @@ class CourseService: ObservableObject {
                 .upsert(completion)
                 .execute()
             
+            print("✅ Lesson marked as complete successfully")
             return true
         } catch {
-            print("❌ Error marking lesson complete: \\(error)")
-            errorMessage = "Failed to mark lesson as complete: \\(error.localizedDescription)"
+            print("❌ Error marking lesson complete: \(error.localizedDescription)")
+            errorMessage = "Failed to mark lesson as complete: \(error.localizedDescription)"
             return false
+        }
+    }
+    
+    /// Check if a lesson is completed
+    func isLessonCompleted(userId: UUID, courseId: UUID, lessonId: UUID) async -> Bool {
+        do {
+            struct LessonCompletionQuery: Codable {
+                let id: UUID
+            }
+            
+            let completions: [LessonCompletionQuery] = try await supabase
+                .from("lesson_completions")
+                .select("id")
+                .eq("user_id", value: userId)
+                .eq("course_id", value: courseId)
+                .eq("lesson_id", value: lessonId)
+                .execute()
+                .value
+            
+            return !completions.isEmpty
+        } catch {
+            print("❌ Error checking lesson completion: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Get course progress for a user
+    func getCourseProgress(userId: UUID, courseId: UUID) async -> Double {
+        do {
+            struct EnrollmentProgress: Codable {
+                let progress: Double?
+            }
+            
+            let result: [EnrollmentProgress] = try await supabase
+                .from("enrollments")
+                .select("progress")
+                .eq("user_id", value: userId)
+                .eq("course_id", value: courseId)
+                .execute()
+                .value
+            
+            let progress = result.first?.progress ?? 0.0
+            print("📊 Fetched progress from DB: \(progress * 100)% for course \(courseId)")
+            return progress
+        } catch {
+            print("❌ Error fetching progress: \(error.localizedDescription)")
+            return 0.0
         }
     }
     
@@ -390,15 +451,15 @@ class CourseService: ObservableObject {
             let completions: [LessonCompletionQuery] = try await supabase
                 .from("lesson_completions")
                 .select("lesson_id")
-                .eq("user_id", value: userId.uuidString)
-                .eq("course_id", value: courseId.uuidString)
+                .eq("user_id", value: userId)
+                .eq("course_id", value: courseId)
                 .execute()
                 .value
             
             let completedCount = completions.count
             let progress = Double(completedCount) / Double(totalLessons)
             
-            print("📊 Progress: \\(completedCount)/\\(totalLessons) = \\(progress)")
+            print("📊 Progress: \(completedCount)/\(totalLessons) = \(progress)")
             
             // Update enrollment progress
             struct ProgressUpdate: Encodable {
@@ -408,17 +469,79 @@ class CourseService: ObservableObject {
             try await supabase
                 .from("enrollments")
                 .update(ProgressUpdate(progress: progress))
-                .eq("user_id", value: userId.uuidString)
-                .eq("course_id", value: courseId.uuidString)
+                .eq("user_id", value: userId)
+                .eq("course_id", value: courseId)
                 .execute()
             
             print("✅ Progress updated successfully")
+            
+            // 🏆 AUTO-GENERATE CERTIFICATE IF 100% COMPLETE
+            if progress >= 1.0 {
+                print("🎉 Course completed! Generating certificate...")
+                await generateCertificateIfNeeded(userId: userId, courseId: courseId, courseName: course.title)
+            }
         } catch {
-            print("❌ Error updating course progress: \\(error)")
-            errorMessage = "Failed to update progress: \\(error.localizedDescription)"
+            print("❌ Error updating course progress: \(error)")
+            errorMessage = "Failed to update progress: \(error.localizedDescription)"
+        }
+    }
+    
+    /// Generate certificate automatically when course is completed
+    private func generateCertificateIfNeeded(userId: UUID, courseId: UUID, courseName: String) async {
+        do {
+            // Get user name from auth metadata
+            let user = try await supabase.auth.user()
+            let userName = user.userMetadata["full_name"] as? String ?? "Learner"
+            // Check if certificate already exists
+            let existing: [Certificate.DatabaseModel] = try await supabase
+                .from("certificates")
+                .select()
+                .eq("user_id", value: userId)
+                .eq("course_id", value: courseId)
+                .execute()
+                .value
+            
+            if !existing.isEmpty {
+                print("ℹ️ Certificate already exists for this course")
+                return
+            }
+            
+            // Get instructor name from course
+            guard let course = await fetchCourse(by: courseId) else {
+                print("❌ Could not fetch course for certificate")
+                return
+            }
+            
+            // Generate certificate
+            let certificateNumber = Certificate.generateCertificateNumber()
+            let now = ISO8601DateFormatter().string(from: Date())
+            
+            let certificate = Certificate.DatabaseModel(
+                id: UUID(),
+                user_id: userId,
+                course_id: courseId,
+                user_name: userName,
+                course_name: courseName,
+                completion_date: now,
+                certificate_number: certificateNumber,
+                instructor_name: "TLMS Instructor", // TODO: Get actual instructor name
+                created_at: now
+            )
+            
+            let _: [Certificate.DatabaseModel] = try await supabase
+                .from("certificates")
+                .insert(certificate)
+                .select()
+                .execute()
+                .value
+            
+            print("🏆 Certificate generated successfully: \(certificateNumber)")
+        } catch {
+            print("❌ Error generating certificate: \(error)")
         }
     }
 }
+
 
 // Helper model for enrollment
 struct Enrollment: Codable {
