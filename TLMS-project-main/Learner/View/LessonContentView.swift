@@ -98,6 +98,20 @@ struct LessonContentView: View {
         } message: {
             Text("Great job! You've completed this lesson.")
         }
+        .onAppear {
+            loadCompletionStatus()
+        }
+    }
+    
+    // MARK: - Load Completion Status
+    private func loadCompletionStatus() {
+        Task {
+            isCompleted = await courseService.isLessonCompleted(
+                userId: userId,
+                courseId: courseId,
+                lessonId: lesson.id
+            )
+        }
     }
     // MARK: - Check if Completed (NEW ✅)
        private func checkIfAlreadyCompleted() async {
@@ -186,43 +200,11 @@ struct LessonContentView: View {
     @ViewBuilder
     private var pdfContentView: some View {
         if let fileURL = lesson.fileURL, let url = URL(string: fileURL) {
-            VStack(spacing: 12) {
-                // Display file name if available
-                if let fileName = lesson.fileName {
-                    HStack {
-                        Image(systemName: "doc.fill")
-                            .foregroundColor(AppTheme.primaryAccent)
-                        Text(fileName)
-                            .font(.subheadline.bold())
-                            .foregroundColor(AppTheme.primaryText)
-                        Spacer()
-                    }
-                    .padding()
-                    .background(AppTheme.secondaryGroupedBackground)
-                    .cornerRadius(AppTheme.cornerRadius)
-                }
-                
-                PDFViewRepresentable(url: url)
-                    .frame(height: 500)
-                    .cornerRadius(AppTheme.cornerRadius)
-                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                
-                if let description = lesson.contentDescription {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Document Description")
-                            .font(.headline)
-                            .foregroundColor(AppTheme.primaryText)
-                        
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(AppTheme.secondaryText)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.secondaryGroupedBackground)
-                    .cornerRadius(AppTheme.cornerRadius)
-                }
-            }
+            DocumentViewer(
+                url: url,
+                fileName: lesson.fileName ?? "Document.pdf",
+                documentType: .pdf
+            )
         } else {
             EmptyContentView(message: "PDF document is not available or the URL is invalid.")
         }
@@ -232,54 +214,11 @@ struct LessonContentView: View {
     @ViewBuilder
     private var presentationContentView: some View {
         if let fileURL = lesson.fileURL, let url = URL(string: fileURL) {
-            VStack(spacing: 12) {
-                // Display file name if available
-                if let fileName = lesson.fileName {
-                    HStack {
-                        Image(systemName: "rectangle.on.rectangle.fill")
-                            .foregroundColor(AppTheme.primaryAccent)
-                        Text(fileName)
-                            .font(.subheadline.bold())
-                            .foregroundColor(AppTheme.primaryText)
-                        Spacer()
-                        
-                        Link(destination: url) {
-                            Label("Open", systemImage: "arrow.up.right.square")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(AppTheme.primaryBlue)
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                        }
-                    }
-                    .padding()
-                    .background(AppTheme.secondaryGroupedBackground)
-                    .cornerRadius(AppTheme.cornerRadius)
-                }
-                
-                // For presentations, show a preview with web view or download option
-                WebViewRepresentable(url: url)
-                    .frame(height: 500)
-                    .cornerRadius(AppTheme.cornerRadius)
-                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                
-                if let description = lesson.contentDescription {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Presentation Description")
-                            .font(.headline)
-                            .foregroundColor(AppTheme.primaryText)
-                        
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(AppTheme.secondaryText)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.secondaryGroupedBackground)
-                    .cornerRadius(AppTheme.cornerRadius)
-                }
-            }
+            DocumentViewer(
+                url: url,
+                fileName: lesson.fileName ?? "Presentation",
+                documentType: .powerpoint
+            )
         } else {
             EmptyContentView(message: "Presentation file is not available or the URL is invalid.")
         }

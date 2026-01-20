@@ -54,7 +54,7 @@ struct AdminCourseValueView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(AppTheme.secondaryBlue)
+                        .background(AppTheme.secondaryBackground)
                         .cornerRadius(8)
                         .foregroundColor(AppTheme.primaryBlue)
                     }

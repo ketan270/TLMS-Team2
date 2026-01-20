@@ -14,6 +14,7 @@ struct LearnerDashboardView: View {
     @State private var selectedTab = 0 // 0: Browse, 1: My Courses
     
     @State private var showProfile = false
+    @State private var showCertificates = false
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
@@ -119,10 +120,17 @@ struct LearnerDashboardView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showProfile = true }) {
-                        Image(systemName: "person.circle")
-                            .font(.system(size: 24))
-                            .foregroundColor(AppTheme.primaryBlue)
+                    HStack(spacing: 16) {
+                        Button(action: { showCertificates = true }) {
+                            Image(systemName: "seal.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(AppTheme.primaryBlue)
+                        }
+                        Button(action: { showProfile = true }) {
+                            Image(systemName: "person.circle")
+                                .font(.system(size: 24))
+                                .foregroundColor(AppTheme.primaryBlue)
+                        }
                     }
                 }
             }
@@ -138,6 +146,11 @@ struct LearnerDashboardView: View {
         .id(user.id)
         .sheet(isPresented: $showProfile) {
             ProfileView(user: user)
+        }
+        .sheet(isPresented: $showCertificates) {
+            NavigationView {
+                CertificatesListView(userId: user.id)
+            }
         }
 
     }
@@ -293,6 +306,7 @@ struct LearnerDashboardView: View {
                                                 PublishedCourseCard(
                                                     course: course,
                                                     isEnrolled: viewModel.isEnrolled(course),
+                                                    userId: user.id,
                                                     onEnroll: {
                                                         let success = await viewModel.enroll(course: course, userId: user.id)
                                                         if success {
@@ -313,13 +327,18 @@ struct LearnerDashboardView: View {
                 }
             }
             .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: 0)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack {
+                    HStack(spacing: 16) {
+                        Button(action: { showCertificates = true }) {
+                            Image(systemName: "seal.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(AppTheme.primaryBlue)
+                        }
                         Button(action: { showProfile = true }) {
                             Image(systemName: "person.circle")
                                 .font(.system(size: 24))
@@ -394,22 +413,27 @@ struct LearnerDashboardView: View {
     struct PublishedCourseCard: View {
         let course: Course
         let isEnrolled: Bool
+        let userId: UUID
         var onEnroll: () async -> Void
         
         @Environment(\.colorScheme) var colorScheme
         @State private var isEnrolling = false
+        @State private var showSuccess = false
+        @State private var showPaymentRequired = false
+        @State private var courseProgress: Double = 0.0
+        @StateObject private var courseService = CourseService()
         
-        // Fallbacks for category styling if Course doesn't provide color/icon
+        // Fallbacks for category styling
         private var categoryColor: Color {
             switch course.category.lowercased() {
-            case "design": return .purple
-            case "development", "programming", "code": return .blue
-            case "marketing": return .orange
-            case "business": return .teal
-            case "data", "analytics": return .green
-            case "photography": return .pink
-            case "music": return .indigo
-            default: return .gray
+            case "design": return AppTheme.accentPurple
+            case "development", "programming", "code": return AppTheme.primaryBlue
+            case "marketing": return AppTheme.warningOrange
+            case "business": return AppTheme.accentTeal
+            case "data", "analytics": return AppTheme.successGreen
+            case "photography": return Color.pink
+            case "music": return Color.indigo
+            default: return AppTheme.secondaryText
             }
         }
         
@@ -427,96 +451,211 @@ struct LearnerDashboardView: View {
         }
         
         var body: some View {
-            HStack(spacing: 16) {
-                // Course Icon
-                ZStack {
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .fill(categoryColor.opacity(0.15))
-                        .frame(width: 60, height: 60)
-                    
-                    Image(systemName: categoryIcon)
-                        .font(.system(size: 24))
-                        .foregroundColor(categoryColor)
-                }
-                
-                // Course Info
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(course.title)
-                        .font(.headline)
-                        .foregroundColor(AppTheme.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                    
-                    Text(course.description)
-                        .font(.subheadline)
-                        .foregroundColor(AppTheme.secondaryText)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    
-                    HStack(spacing: 12) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "folder.fill")
-                            .font(.system(size: 10))
-                            Text(course.category)
-                                .font(.caption.weight(.medium))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                        .foregroundColor(categoryColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(categoryColor.opacity(0.15))
-                        .cornerRadius(6)
-                        .fixedSize()
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 16) {
+                    // Course Icon with gradient
+                    ZStack {
+                        RoundedRectangle(cornerRadius: AppTheme.mediumCornerRadius)
+                            .fill(
+                                LinearGradient(
+                                    colors: [categoryColor.opacity(0.2), categoryColor.opacity(0.05)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 70, height: 70)
                         
-                        // Module Count
-                        HStack(spacing: 4) {
-                            Image(systemName: "list.bullet")
-                            .font(.system(size: 10))
-                            Text("\(course.modules.count)")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.secondary)
-                        .fixedSize()
+                        Image(systemName: categoryIcon)
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [categoryColor, categoryColor.opacity(0.7)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                     }
-                    .fixedSize(horizontal: true, vertical: false)
+                    
+                    // Course Info
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(course.title)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(AppTheme.primaryText)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        Text(course.description)
+                            .font(.system(size: 14))
+                            .foregroundColor(AppTheme.secondaryText)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        HStack(spacing: 10) {
+                            // Category badge
+                            HStack(spacing: 4) {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 9))
+                                Text(course.category)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(categoryColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(categoryColor.opacity(0.12))
+                            .cornerRadius(6)
+                            
+                            // Module count
+                            HStack(spacing: 3) {
+                                Image(systemName: "list.bullet")
+                                    .font(.system(size: 9))
+                                Text("\(course.modules.count)")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(AppTheme.secondaryText)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
                 
-                Spacer()
-                
-                // Enroll Action
-                if isEnrolled {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(AppTheme.successGreen)
-                } else {
-                    Button(action: {
-                        Task {
-                            isEnrolling = true
-                            await onEnroll()
-                            isEnrolling = false
+                // Bottom section with action
+                HStack {
+                    if isEnrolled {
+                        // Progress indicator for enrolled courses
+                        HStack(spacing: 12) {
+                            MiniProgressRing(progress: courseProgress)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                if courseProgress >= 1.0 {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.seal.fill")
+                                            .foregroundColor(AppTheme.successGreen)
+                                        Text("Completed")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundColor(AppTheme.successGreen)
+                                    }
+                                    Text("Certificate ready!")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(AppTheme.secondaryText)
+                                } else {
+                                    Text("In Progress")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(AppTheme.primaryText)
+                                    Text("\(Int(courseProgress * 100))% complete")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(AppTheme.secondaryText)
+                                }
+                            }
                         }
-                    }) {
-                        if isEnrolling {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Text("Enroll")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(AppTheme.primaryBlue)
-                                .cornerRadius(20)
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(AppTheme.secondaryText)
+                    } else {
+                        Spacer()
+                        
+                        Button(action: {
+                            // Check if course is paid
+                            if let price = course.price, price > 0 {
+                                // Show payment required message
+                                showPaymentRequired = true
+                            } else {
+                                // Free course - enroll directly
+                                Task {
+                                    isEnrolling = true
+                                    await onEnroll()
+                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                                        showSuccess = true
+                                    }
+                                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                    showSuccess = false
+                                    isEnrolling = false
+                                }
+                            }
+                        }) {
+                            Group {
+                                if showSuccess {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                        Text("Enrolled!")
+                                    }
+                                    .foregroundColor(AppTheme.successGreen)
+                                } else if isEnrolling {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .tint(.white)
+                                } else {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "plus.circle.fill")
+                                        Text("Enroll")
+                                    }
+                                }
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(showSuccess ? AppTheme.successGreen : .white)
+                            .frame(width: 120, height: 36)
+                            .background(
+                                showSuccess ?
+                                LinearGradient(colors: [AppTheme.successGreen.opacity(0.15), AppTheme.successGreen.opacity(0.15)], startPoint: .topLeading, endPoint: .bottomTrailing) :
+                                AppTheme.oceanGradient
+                            )
+                            .cornerRadius(18)
+                            .shadow(
+                                color: showSuccess ? .clear : AppTheme.primaryBlue.opacity(0.3),
+                                radius: 8,
+                                y: 4
+                            )
                         }
+                        .disabled(isEnrolling)
+                        .pressableScale()
                     }
-                    .disabled(isEnrolling)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            }
+            .background(AppTheme.cardBackground)
+            .cornerRadius(AppTheme.cornerRadius)
+            .shadow(
+                color: AppTheme.cardShadow.color,
+                radius: AppTheme.cardShadow.radius,
+                x: AppTheme.cardShadow.x,
+                y: AppTheme.cardShadow.y
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                    .stroke(
+                        isEnrolled ? 
+                        LinearGradient(
+                            colors: [AppTheme.successGreen.opacity(0.3), AppTheme.successGreen.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ) :
+                        LinearGradient(colors: [Color.clear], startPoint: .top, endPoint: .bottom),
+                        lineWidth: isEnrolled ? 1.5 : 0
+                    )
+            )
+            .scaleEffect(showSuccess ? 1.02 : 1.0)
+            .animation(AppTheme.springAnimation, value: showSuccess)
+            .alert("Payment Required", isPresented: $showPaymentRequired) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Please open the course details to purchase this course.")
+            }
+            .onAppear {
+                if isEnrolled {
+                    loadProgress()
                 }
             }
-            .padding(16)
-            .background(AppTheme.secondaryGroupedBackground)
-            .cornerRadius(AppTheme.cornerRadius)
-            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        }
+        
+        private func loadProgress() {
+            Task {
+                courseProgress = await courseService.getCourseProgress(userId: userId, courseId: course.id)
+                print("📊 Loaded progress for \(course.title): \(courseProgress * 100)%")
+            }
         }
     }
     
@@ -574,5 +713,4 @@ struct LearnerDashboardView: View {
         }
     }
 }
-
 

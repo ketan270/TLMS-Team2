@@ -7,6 +7,8 @@
 
 import SwiftUI
 import Combine
+import PostgREST
+import Supabase
 
 @MainActor
 final class LearnerDashboardViewModel: ObservableObject {
@@ -106,4 +108,27 @@ final class LearnerDashboardViewModel: ObservableObject {
     func isEnrolled(_ course: Course) -> Bool {
         enrolledCourses.contains(where: { $0.id == course.id })
     }
+    
+    /// Get course progress for a user
+    func getCourseProgress(courseId: UUID, userId: UUID) async -> Double {
+        do {
+            struct EnrollmentProgress: Codable {
+                let progress: Double?
+            }
+            
+            let result: [EnrollmentProgress] = try await courseService.supabase
+                .from("enrollments")
+                .select("progress")
+                .eq("user_id", value: userId)
+                .eq("course_id", value: courseId)
+                .execute()
+                .value
+            
+            return result.first?.progress ?? 0.0
+        } catch {
+            print("❌ Error fetching progress: \(error.localizedDescription)")
+            return 0.0
+        }
+    }
 }
+
