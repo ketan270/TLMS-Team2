@@ -57,12 +57,25 @@ struct CategoryCourseCard: View {
                     // Module Count
                     HStack(spacing: 4) {
                         Image(systemName: "list.bullet")
-                        .font(.system(size: 10))
+                            .font(.system(size: 10))
                         Text("\(course.modules.count)")
                             .font(.caption)
                     }
                     .foregroundColor(.secondary)
                     .fixedSize()
+                    
+                    // Rating
+                    if let rating = course.ratingAvg, course.ratingCount > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.orange)
+                            Text(String(format: "%.1f", rating))
+                                .font(.caption.bold())
+                                .foregroundColor(AppTheme.primaryText)
+                        }
+                        .fixedSize()
+                    }
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
@@ -70,20 +83,34 @@ struct CategoryCourseCard: View {
             
             Spacer()
             
-            // Enrollment Status / Arrow
-            if isEnrolled {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(AppTheme.successGreen)
-            } else {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.secondary)
+            // Enrollment Status / Price
+            VStack(alignment: .trailing, spacing: 8) {
+                // Price Label
+                if let price = course.price, price > 0 {
+                    Text(price.formatted(.currency(code: "INR")))
+                        .font(.subheadline.bold())
+                        .foregroundColor(AppTheme.primaryBlue)
+                } else {
+                    Text("Free")
+                        .font(.subheadline.bold())
+                        .foregroundColor(AppTheme.successGreen)
+                }
+                
+                // Status Icon
+                if isEnrolled {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(AppTheme.successGreen)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
             }
+            .padding(16)
+            .background(AppTheme.secondaryGroupedBackground)
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
-        .padding(16)
-        .background(AppTheme.secondaryGroupedBackground)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }

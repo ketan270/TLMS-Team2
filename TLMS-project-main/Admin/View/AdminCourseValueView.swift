@@ -191,7 +191,7 @@ struct CourseValueRow: View {
                         Image(systemName: "star.fill")
                             .font(.caption)
                             .foregroundColor(.orange)
-                        Text(String(format: "%.1f", course.rating ?? 0.0))
+                        Text(String(format: "%.1f", course.ratingAvg ?? 0.0))
                             .font(.caption.weight(.medium))
                             .foregroundColor(.secondary)
                     }

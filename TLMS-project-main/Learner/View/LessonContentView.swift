@@ -17,6 +17,7 @@ struct LessonContentView: View {
     @State private var showTranscript = true
     @State private var isLoading = false
     @State private var transcriptFileURL: URL?
+    @State private var isQuizActive = false
     
     @StateObject private var courseService = CourseService()
     
@@ -156,8 +157,49 @@ struct LessonContentView: View {
             }
             
         case .quiz:
-            Text("Quizzes are handled separately.")
-                .padding()
+            VStack(spacing: 24) {
+                Image(systemName: "checkmark.circle.badge.questionmark.fill")
+                    .font(.system(size: 64))
+                    .foregroundColor(AppTheme.primaryBlue)
+                    .padding(.top, 40)
+                
+                Text("Ready to test your knowledge?")
+                    .font(.title3.bold())
+                    .foregroundColor(AppTheme.primaryText)
+                
+                if let timeLimit = lesson.quizTimeLimit {
+                    Label("\(timeLimit) minutes", systemImage: "clock")
+                        .font(.headline)
+                        .foregroundColor(AppTheme.secondaryText)
+                }
+                
+                Button(action: {
+                    isQuizActive = true
+                }) {
+                    Text("Start Quiz")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(AppTheme.primaryBlue)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 20)
+                
+                Text("Once started, you cannot leave until the quiz is submitted.")
+                    .font(.caption)
+                    .foregroundColor(AppTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(AppTheme.secondaryGroupedBackground)
+            .cornerRadius(AppTheme.cornerRadius)
+            .navigationDestination(isPresented: $isQuizActive) {
+                LearnerQuizView(lesson: lesson, isPresented: $isQuizActive)
+            }
         }
     }
     

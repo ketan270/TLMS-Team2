@@ -101,26 +101,36 @@ final class LearnerDashboardViewModel: ObservableObject {
         isLoading = false
     }
     
+//    private func cacheCourseProgress(userId: UUID) async {
+//        do {
+//            struct EnrollmentProgress: Codable {
+//                let course_id: UUID
+//                let progress: Double?
+//            }
+//
+//            let enrollments: [EnrollmentProgress] = try await courseService.supabase
+//                .from("enrollments")
+//                .select("course_id, progress")
+//                .eq("user_id", value: userId)
+//                .execute()
+//                .value
+//
+//            var map: [UUID: Double] = [:]
+//            for enrollment in enrollments {
+//                map[enrollment.course_id] = enrollment.progress ?? 0.0
+//            }
+//
+//            self.courseProgressMap = map
+//        } catch {
+//            print("❌ Failed to cache course progress:", error)
+//            self.courseProgressMap = [:]
+//        }
+//    }
+    
     private func cacheCourseProgress(userId: UUID) async {
         do {
-            struct EnrollmentProgress: Codable {
-                let course_id: UUID
-                let progress: Double?
-            }
-
-            let enrollments: [EnrollmentProgress] = try await courseService.supabase
-                .from("enrollments")
-                .select("course_id, progress")
-                .eq("user_id", value: userId)
-                .execute()
-                .value
-
-            var map: [UUID: Double] = [:]
-            for enrollment in enrollments {
-                map[enrollment.course_id] = enrollment.progress ?? 0.0
-            }
-
-            self.courseProgressMap = map
+            let rows = try await courseService.fetchEnrollmentProgress(userId: userId)
+            self.courseProgressMap = Dictionary(uniqueKeysWithValues: rows)
         } catch {
             print("❌ Failed to cache course progress:", error)
             self.courseProgressMap = [:]
@@ -229,27 +239,39 @@ final class LearnerDashboardViewModel: ObservableObject {
 //    }
 
     
+//    private func calculateCompletedCourses(userId: UUID) async {
+//        // Fetch all enrollments with progress
+//        do {
+//            struct EnrollmentProgress: Codable {
+//                let course_id: UUID
+//                let progress: Double?
+//            }
+//            
+//            let enrollments: [EnrollmentProgress] = try await courseService.supabase
+//                .from("enrollments")
+//                .select("course_id, progress")
+//                .eq("user_id", value: userId)
+//                .execute()
+//                .value
+//            
+//            let completed = enrollments.filter { ($0.progress ?? 0) >= 1.0 }
+//            self.completedCoursesCount = completed.count
+//            self.completedCourseIds = Set(completed.map { $0.course_id })
+//            
+//        } catch {
+//            print("Failed to calculate completed courses: \(error)")
+//        }
+//    }
+    
     private func calculateCompletedCourses(userId: UUID) async {
-        // Fetch all enrollments with progress
         do {
-            struct EnrollmentProgress: Codable {
-                let course_id: UUID
-                let progress: Double?
-            }
-            
-            let enrollments: [EnrollmentProgress] = try await courseService.supabase
-                .from("enrollments")
-                .select("course_id, progress")
-                .eq("user_id", value: userId)
-                .execute()
-                .value
-            
-            let completed = enrollments.filter { ($0.progress ?? 0) >= 1.0 }
+            let rows = try await courseService.fetchEnrollmentProgress(userId: userId)
+
+            let completed = rows.filter { $0.progress >= 1.0 }
             self.completedCoursesCount = completed.count
-            self.completedCourseIds = Set(completed.map { $0.course_id })
-            
+            self.completedCourseIds = Set(completed.map { $0.courseId })
         } catch {
-            print("Failed to calculate completed courses: \(error)")
+            print("Failed to calculate completed courses:", error)
         }
     }
 }

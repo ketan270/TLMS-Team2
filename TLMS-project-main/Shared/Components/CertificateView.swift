@@ -164,7 +164,11 @@ struct CertificateView: View {
     
     private func generateCertificateImage() {
         // Generate image representation of certificate
-        let renderer = ImageRenderer(content: certificateCard)
+        // Use A4 dimensions (595 x 842 points) for the renderer
+        let renderer = ImageRenderer(content: 
+            certificateCard
+                .frame(width: 595, height: 842)
+        )
         renderer.scale = 3.0 // High resolution
         
         if let image = renderer.uiImage {

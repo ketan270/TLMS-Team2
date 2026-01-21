@@ -80,8 +80,9 @@ struct Course: Identifiable, Codable {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
     var enrollmentCount: Int = 0
-    var rating: Double?
+    var ratingAvg: Double?
     var price: Double?
+    var ratingCount: Int = 0
     var enrolledCount: Int?
     
     // Convenience property for backward compatibility
@@ -103,13 +104,14 @@ struct Course: Identifiable, Codable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case enrollmentCount = "enrollment_count"
-        case rating
+        case ratingAvg = "rating_avg"
         case price
+        case ratingCount = "rating_count"
         case enrolledCount = "enrolled_count"
     }
     
     // Default init
-    init(id: UUID = UUID(), title: String, description: String, category: String, educatorID: UUID, modules: [Module] = [], status: CourseStatus = .draft, courseCoverUrl: String? = nil, level: CourseLevel = .beginner, createdAt: Date = Date(), updatedAt: Date = Date(), enrollmentCount: Int = 0, rating: Double? = nil, price: Double? = nil, enrolledCount: Int? = nil) {
+    init(id: UUID = UUID(), title: String, description: String, category: String, educatorID: UUID, modules: [Module] = [], status: CourseStatus = .draft, courseCoverUrl: String? = nil, level: CourseLevel = .beginner, createdAt: Date = Date(), updatedAt: Date = Date(), enrollmentCount: Int = 0, ratingAvg: Double? = nil, price: Double? = nil, ratingCount: Int = 0, enrolledCount: Int? = nil) {
         self.id = id
         self.title = title
         self.description = description
@@ -122,8 +124,9 @@ struct Course: Identifiable, Codable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.enrollmentCount = enrollmentCount
-        self.rating = rating
+        self.ratingAvg = ratingAvg
         self.price = price
+        self.ratingCount = ratingCount
         self.enrolledCount = enrolledCount
     }
     
@@ -142,8 +145,9 @@ struct Course: Identifiable, Codable {
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         enrollmentCount = try container.decodeIfPresent(Int.self, forKey: .enrollmentCount) ?? 0
-        rating = try container.decodeIfPresent(Double.self, forKey: .rating)
+        ratingAvg = try container.decodeIfPresent(Double.self, forKey: .ratingAvg)
         price = try container.decodeIfPresent(Double.self, forKey: .price)
+        ratingCount = try container.decodeIfPresent(Int.self, forKey: .ratingCount) ?? 0
         enrolledCount = try container.decodeIfPresent(Int.self, forKey: .enrolledCount)
         
         // Handle modules being either [Module] or String
@@ -296,5 +300,43 @@ enum ContentType: String, Codable, CaseIterable, Identifiable {
         case .presentation: return "rectangle.on.rectangle.fill"
         case .quiz: return "checkmark.circle.fill"
         }
+    }
+}
+
+// MARK: - Review Model
+
+struct CourseReview: Identifiable, Codable {
+    var id: UUID
+    var courseID: UUID
+    var userID: UUID
+    var rating: Int
+    var reviewText: String?
+    var isVisible: Bool
+    var createdAt: Date
+
+    // Joined user profile
+    struct UserProfile: Codable {
+        let fullName: String
+        enum CodingKeys: String, CodingKey {
+            case fullName = "full_name"
+        }
+    }
+
+    // ❗ MUST NOT be private
+    var userProfiles: UserProfile?
+
+    var reviewerName: String {
+        userProfiles?.fullName ?? "Anonymous Learner"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case courseID = "course_id"
+        case userID = "user_id"
+        case rating
+        case reviewText = "review_text"
+        case isVisible = "is_visible"
+        case createdAt = "created_at"
+        case userProfiles = "user_profiles"
     }
 }

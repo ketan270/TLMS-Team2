@@ -68,10 +68,10 @@ class AdminCourseValueViewModel: ObservableObject {
                 }
                 
                 // Only add mock data if missing
-                if course.rating == nil {
+                if course.ratingAvg == nil {
                     // Random rating between 1.0 and 5.0, weighted towards higher ratings
                     let randomRating = Double.random(in: 2.5...5.0)
-                    course.rating = (randomRating * 10).rounded() / 10 // Round to 1 decimal
+                    course.ratingAvg = (randomRating * 10).rounded() / 10 // Round to 1 decimal
                 }
                 
                 if course.price == nil {
@@ -118,9 +118,9 @@ class AdminCourseValueViewModel: ObservableObject {
             // Sort by title
             courses.sort { $0.title < $1.title }
         case .lowestRating:
-            courses.sort { ($0.rating ?? 5.0) < ($1.rating ?? 5.0) }
+            courses.sort { ($0.ratingAvg ?? 5.0) < ($1.ratingAvg ?? 5.0) }
         case .highestRating:
-            courses.sort { ($0.rating ?? 0.0) > ($1.rating ?? 0.0) }
+            courses.sort { ($0.ratingAvg ?? 0.0) > ($1.ratingAvg ?? 0.0) }
         case .highestPrice:
             courses.sort { ($0.price ?? 0.0) > ($1.price ?? 0.0) }
         case .mostStudents:
