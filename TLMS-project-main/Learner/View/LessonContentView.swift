@@ -1,10 +1,3 @@
-//
-//  LessonContentView.swift
-//  TLMS-project-main
-//
-//  Comprehensive content viewer for all lesson types (video, PDF, text, presentation)
-//
-
 import SwiftUI
 import PDFKit
 import AVKit
@@ -12,253 +5,393 @@ import WebKit
 
 struct LessonContentView: View {
     let lesson: Lesson
-    let courseId: UUID
+    let course: Course
     let userId: UUID
+    @Binding var selectedLesson: Lesson?
     
-    @State private var isCompleted = false
+    // MARK: - State
+    /// Single source of truth for completion status
+    @State private var completedLessonIds: Set<UUID> = []
     @State private var showCompletionAlert = false
+    @State private var showSidebar = false
+    @State private var showTranscript = true
+    @State private var isLoading = false
+    @State private var transcriptFileURL: URL?
+    
     @StateObject private var courseService = CourseService()
-    @State private var isCheckingCompletion = false
+    
+    // Derived state for the CURRENT lesson
+    private var isCurrentLessonCompleted: Bool {
+        completedLessonIds.contains(lesson.id)
+    }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // MARK: - Header
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: lesson.type.icon)
-                            .font(.title3)
-                            .foregroundColor(AppTheme.primaryAccent)
-                        
-                        Text(lesson.type.rawValue)
-                            .font(.caption)
-                            .foregroundColor(AppTheme.secondaryText)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(AppTheme.primaryAccent.opacity(0.1))
-                            .cornerRadius(8)
-                        
-                        Spacer()
-                        
-                        if isCompleted {
-                            Label("Completed", systemImage: "checkmark.circle.fill")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(AppTheme.successGreen.opacity(0.1))
-                                .foregroundColor(AppTheme.successGreen)
-                                .cornerRadius(8)
-                        }
-                    }
+        ZStack(alignment: .leading) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
                     
-                    Text(lesson.title)
-                        .font(.title2.bold())
-                        .foregroundColor(AppTheme.primaryText)
+                    // MARK: - Header
+                    headerView
                     
-                    if let description = lesson.contentDescription {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundColor(AppTheme.secondaryText)
-                    }
+                    // MARK: - Content
+                    contentView
+                    
+                    // MARK: - Footer Actions
+                    footerActionView
                 }
                 .padding()
-                .background(AppTheme.secondaryGroupedBackground)
-                .cornerRadius(AppTheme.cornerRadius)
-                
-                // MARK: - Content Display
-                contentView
-                
-                // MARK: - Mark as Complete Button
-                if !isCompleted {
-                    Button(action: markAsComplete) {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Mark as Complete")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(AppTheme.primaryBlue)
-                        .foregroundColor(.white)
-                        .cornerRadius(AppTheme.cornerRadius)
-                    }
-                    .padding(.top, 8)
-                }
             }
-            .padding()
+            
+            // MARK: - Sidebar Overlay
+            if showSidebar {
+                sidebarOverlay
+            }
         }
         .background(AppTheme.groupedBackground)
         .navigationTitle("Lesson")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    withAnimation { showSidebar.toggle() }
+                } label: {
+                    Image(systemName: "list.bullet.sidebar")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+            }
+        }
+        // Load initial state
         .task {
-                   await checkIfAlreadyCompleted()
-               }
+            await loadAllCompletions()
+        }
+        // Watch for lesson changes (if logic requires re-check, though set is global for course)
+        .onChange(of: selectedLesson?.id) { _ in
+            // Maybe scroll to top?
+        }
         .alert("Lesson Complete!", isPresented: $showCompletionAlert) {
-            Button("Continue", role: .cancel) {}
+            Button("Continue", role: .cancel) {
+                moveToNextLesson()
+            }
         } message: {
             Text("Great job! You've completed this lesson.")
         }
-        .onAppear {
-            loadCompletionStatus()
-        }
     }
     
-    // MARK: - Load Completion Status
-    private func loadCompletionStatus() {
-        Task {
-            isCompleted = await courseService.isLessonCompleted(
-                userId: userId,
-                courseId: courseId,
-                lessonId: lesson.id
-            )
-        }
-    }
-    // MARK: - Check if Completed (NEW ✅)
-       private func checkIfAlreadyCompleted() async {
-           isCheckingCompletion = true
-           defer { isCheckingCompletion = false }
-
-           let completed = await courseService.isLessonCompleted(
-               userId: userId,
-               courseId: courseId,
-               lessonId: lesson.id
-           )
-
-           isCompleted = completed
-       }
+    // MARK: - Views
     
-    // MARK: - Content View based on Type
+    private var headerView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: lesson.type.icon)
+                    .font(.title3)
+                    .foregroundColor(AppTheme.primaryAccent)
+                
+                Text(lesson.type.rawValue)
+                    .font(.caption)
+                    .foregroundColor(AppTheme.secondaryText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.primaryAccent.opacity(0.1))
+                    .cornerRadius(8)
+                
+                Spacer()
+                
+                if isCurrentLessonCompleted {
+                    Label("Completed", systemImage: "checkmark.circle.fill")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(AppTheme.successGreen.opacity(0.1))
+                        .foregroundColor(AppTheme.successGreen)
+                        .cornerRadius(8)
+                }
+            }
+            
+            Text(lesson.title)
+                .font(.title2.bold())
+                .foregroundColor(AppTheme.primaryText)
+            
+            if let description = lesson.contentDescription {
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(AppTheme.secondaryText)
+            }
+        }
+        .padding()
+        .background(AppTheme.secondaryGroupedBackground)
+        .cornerRadius(AppTheme.cornerRadius)
+    }
+    
     @ViewBuilder
     private var contentView: some View {
         switch lesson.type {
         case .text:
-            textContentView
+            if let text = lesson.textContent, !text.isEmpty {
+                Text(text)
+                    .font(.body)
+                    .foregroundColor(AppTheme.primaryText)
+                    .lineSpacing(6)
+                    .padding()
+                    .background(AppTheme.secondaryGroupedBackground)
+                    .cornerRadius(AppTheme.cornerRadius)
+            } else {
+                EmptyContentView(message: "No text content available.")
+            }
+            
         case .video:
             videoContentView
+            
         case .pdf:
-            pdfContentView
+            if let urlStr = lesson.fileURL, let url = URL(string: urlStr) {
+                DocumentViewer(url: url, fileName: lesson.fileName ?? "Document.pdf", documentType: .pdf)
+            } else {
+                EmptyContentView(message: "PDF not available.")
+            }
+            
         case .presentation:
-            presentationContentView
+            if let urlStr = lesson.fileURL, let url = URL(string: urlStr) {
+                DocumentViewer(url: url, fileName: lesson.fileName ?? "Presentation", documentType: .powerpoint)
+            } else {
+                EmptyContentView(message: "Presentation not available.")
+            }
+            
         case .quiz:
-            Text("Quizzes are handled separately")
-                .font(.subheadline)
-                .foregroundColor(AppTheme.secondaryText)
+            Text("Quizzes are handled separately.")
                 .padding()
         }
     }
     
-    // MARK: - Text Content
-    @ViewBuilder
-    private var textContentView: some View {
-        if let textContent = lesson.textContent, !textContent.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(textContent)
-                    .font(.body)
-                    .foregroundColor(AppTheme.primaryText)
-                    .lineSpacing(6)
-            }
-            .padding()
-            .background(AppTheme.secondaryGroupedBackground)
-            .cornerRadius(AppTheme.cornerRadius)
-        } else {
-            EmptyContentView(message: "No text content available for this lesson.")
-        }
-    }
-    
-    // MARK: - Video Content
-    @ViewBuilder
     private var videoContentView: some View {
-        if let fileURL = lesson.fileURL, let url = URL(string: fileURL) {
-            VStack(spacing: 16) {
-                VideoPlayer(player: AVPlayer(url: url))
-                    .frame(height: 250)
-                    .cornerRadius(AppTheme.cornerRadius)
-                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                
-                if let description = lesson.contentDescription {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("About this video")
-                            .font(.headline)
-                            .foregroundColor(AppTheme.primaryText)
-                        
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(AppTheme.secondaryText)
+        Group {
+            if let urlStr = lesson.fileURL,
+               let url = URL(string: urlStr) {
+
+                VStack(spacing: 16) {
+
+                    // Video Player
+                    VideoPlayer(player: AVPlayer(url: url))
+                        .frame(height: 250)
+                        .cornerRadius(AppTheme.cornerRadius)
+
+                    // About section
+                    if let desc = lesson.contentDescription {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("About this video")
+                                .font(.headline)
+
+                            Text(desc)
+                                .font(.body)
+                                .foregroundColor(AppTheme.secondaryText)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppTheme.secondaryGroupedBackground)
+                        .cornerRadius(AppTheme.cornerRadius)
+                    }
+
+                    // Transcript Section
+                    VStack(spacing: 8) {
+
+                        // Header + actions
+                        HStack {
+                            Text("Transcript")
+                                .font(.headline)
+
+                            Spacer()
+
+                            // Download (only if transcript exists)
+                            if let transcript = lesson.transcript,
+                               !transcript.isEmpty {
+
+                                Button {
+                                    transcriptFileURL = createTranscriptFile(from: transcript)
+                                } label: {
+                                    Image(systemName: "arrow.down.doc")
+                                }
+
+                                if let fileURL = transcriptFileURL {
+                                    ShareLink(item: fileURL) {
+                                        Image(systemName: "square.and.arrow.up")
+                                    }
+                                }
+                            }
+
+                            Button(showTranscript ? "Hide" : "Show") {
+                                showTranscript.toggle()
+                            }
+                            .foregroundColor(AppTheme.primaryBlue)
+                        }
+
+                        // Transcript content
+                        if showTranscript {
+                            if let transcript = lesson.transcript,
+                               !transcript.isEmpty {
+
+                                ScrollView {
+                                    Text(transcript)
+                                        .lineSpacing(6)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(maxHeight: 250)
+
+                            } else {
+                                Text("No transcript available.")
+                                    .font(.subheadline)
+                                    .foregroundColor(AppTheme.secondaryText)
+                            }
+                        }
                     }
                     .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(AppTheme.secondaryGroupedBackground)
                     .cornerRadius(AppTheme.cornerRadius)
                 }
+
+            } else {
+                EmptyContentView(message: "Invalid video URL.")
             }
-        } else {
-            EmptyContentView(message: "Video content is not available or the URL is invalid.")
+        }
+    }
+
+    // MARK: - Transcript Download Helper
+    private func createTranscriptFile(from text: String) -> URL? {
+        let safeTitle = lesson.title
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+
+        let fileName = "\(safeTitle)_Transcript.txt"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            print("❌ Failed to create transcript file:", error)
+            return nil
         }
     }
     
-    // MARK: - PDF Content
     @ViewBuilder
-    private var pdfContentView: some View {
-        if let fileURL = lesson.fileURL, let url = URL(string: fileURL) {
-            DocumentViewer(
-                url: url,
-                fileName: lesson.fileName ?? "Document.pdf",
-                documentType: .pdf
-            )
+    private var footerActionView: some View {
+        if !isCurrentLessonCompleted {
+            Button(action: markAsComplete) {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Mark as Complete")
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(AppTheme.primaryBlue)
+                .foregroundColor(.white)
+                .cornerRadius(AppTheme.cornerRadius)
+            }
+            .padding(.top, 8)
         } else {
-            EmptyContentView(message: "PDF document is not available or the URL is invalid.")
+            Button(action: moveToNextLesson) {
+                HStack {
+                    Text("Continue to Next Lesson")
+                        .font(.headline)
+                    Image(systemName: "arrow.right")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(AppTheme.primaryText)
+                .foregroundColor(AppTheme.groupedBackground)
+                .cornerRadius(AppTheme.cornerRadius)
+            }
+            .padding(.top, 8)
         }
     }
     
-    // MARK: - Presentation Content
-    @ViewBuilder
-    private var presentationContentView: some View {
-        if let fileURL = lesson.fileURL, let url = URL(string: fileURL) {
-            DocumentViewer(
-                url: url,
-                fileName: lesson.fileName ?? "Presentation",
-                documentType: .powerpoint
+    private var sidebarOverlay: some View {
+        ZStack(alignment: .leading) {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture { withAnimation { showSidebar = false } }
+            
+            SideMenuView(
+                course: course,
+                completedLessonIds: completedLessonIds,
+                selectedLesson: $selectedLesson,
+                isPresented: $showSidebar
             )
-        } else {
-            EmptyContentView(message: "Presentation file is not available or the URL is invalid.")
+            .frame(width: 300)
+            .transition(.move(edge: .leading))
+        }
+        .zIndex(2)
+    }
+    
+    // MARK: - Logic
+    
+    private func loadAllCompletions() async {
+        let ids = await courseService.fetchCompletedLessonIds(userId: userId, courseId: course.id)
+        await MainActor.run {
+            self.completedLessonIds = ids
         }
     }
     
-    // MARK: - Actions
     private func markAsComplete() {
         Task {
+            isLoading = true
             let success = await courseService.markLessonComplete(
                 userId: userId,
-                courseId: courseId,
+                courseId: course.id,
                 lessonId: lesson.id
             )
-            
+
             if success {
-                withAnimation {
-                    isCompleted = true
+                await MainActor.run {
+                    completedLessonIds.insert(lesson.id)
+                    showCompletionAlert = true
                 }
-                showCompletionAlert = true
-                
-                // Update overall course progress
-                await courseService.updateCourseProgress(
-                    userId: userId,
-                    courseId: courseId
+
+                // Update course progress in DB
+                await courseService.updateCourseProgress(userId: userId, course: course)
+
+                // 🔔 STEP C: notify dashboard
+                NotificationCenter.default.post(
+                    name: .courseProgressUpdated,
+                    object: nil
                 )
             }
+            isLoading = false
         }
+    }
+    
+    private func moveToNextLesson() {
+        guard let next = determineNextLesson() else { return }
+        selectedLesson = next
+    }
+    
+    private func determineNextLesson() -> Lesson? {
+        for (mIndex, module) in course.modules.enumerated() {
+            if let lIndex = module.lessons.firstIndex(where: { $0.id == lesson.id }) {
+                // Check next in module
+                if lIndex + 1 < module.lessons.count {
+                    return module.lessons[lIndex + 1]
+                }
+                // Check next module
+                if mIndex + 1 < course.modules.count {
+                    return course.modules[mIndex + 1].lessons.first
+                }
+            }
+        }
+        return nil
     }
 }
 
-// MARK: - Empty Content View
+// Keep helper views like EmptyContentView if they are not in other files
+// Assuming EmptyContentView, PDFViewRepresentable, WebViewRepresentable are used here 
+// but checking the previous file content, they were defined in the same file.
+// I should preserve them.
+
 struct EmptyContentView: View {
     let message: String
-    
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 40))
                 .foregroundColor(AppTheme.secondaryText.opacity(0.6))
-            
             Text(message)
                 .font(.subheadline)
                 .foregroundColor(AppTheme.secondaryText)
@@ -271,40 +404,34 @@ struct EmptyContentView: View {
     }
 }
 
-// MARK: - PDF View Representable
 struct PDFViewRepresentable: UIViewRepresentable {
     let url: URL
-    
     func makeUIView(context: Context) -> PDFView {
         let pdfView = PDFView()
         pdfView.autoScales = true
         pdfView.displayMode = .singlePageContinuous
         pdfView.displayDirection = .vertical
-        
-        // Load PDF from URL
         if let document = PDFDocument(url: url) {
             pdfView.document = document
         }
-        
         return pdfView
     }
-    
-    func updateUIView(_ uiView: PDFView, context: Context) {
-        // Update if needed
-    }
+    func updateUIView(_ uiView: PDFView, context: Context) {}
 }
 
-// MARK: - Web View Representable (for presentations and other web content)
 struct WebViewRepresentable: UIViewRepresentable {
     let url: URL
-    
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.load(URLRequest(url: url))
         return webView
     }
-    
-    func updateUIView(_ uiView: WKWebView, context: Context) {
-        // Update if needed
-    }
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+}
+
+
+
+
+extension Notification.Name {
+    static let courseProgressUpdated = Notification.Name("courseProgressUpdated")
 }

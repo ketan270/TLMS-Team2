@@ -20,12 +20,15 @@ final class LearnerDashboardViewModel: ObservableObject {
     @Published var showingError: Bool = false
     @Published var errorMessage: String? = nil
     @Published var upcomingDeadlines: [CourseDeadline] = []
-
+    @Published var completedCoursesCount: Int = 0
+    
+    @Published private(set) var courseProgressMap: [UUID: Double] = [:]
     
     // Filter State
     @Published var searchText: String = ""
     @Published var selectedCategory: String? = nil
     @Published var selectedSortOption: CourseSortOption = .relevance
+    
    
 
     
@@ -58,25 +61,73 @@ final class LearnerDashboardViewModel: ObservableObject {
         }
     }
     
+    // NEW: Filtered Enrolled Courses
+    @Published var selectedEnrollmentFilter: CourseEnrollmentFilter = .inProgress
+    @Published private var completedCourseIds: Set<UUID> = []
+
+    var filteredEnrolledCourses: [Course] {
+        switch selectedEnrollmentFilter {
+        case .inProgress:
+            return enrolledCourses.filter { !completedCourseIds.contains($0.id) }
+        case .completed:
+            return enrolledCourses.filter { completedCourseIds.contains($0.id) }
+        }
+    }
+    
     // MARK: - Data Loading
     func loadData(userId: UUID) async {
         isLoading = true
-        
+
+        // 1️⃣ Fetch core data in parallel
         async let published = courseService.fetchPublishedCourses()
         async let enrolled = courseService.fetchEnrolledCourses(userID: userId)
-        
+
         let (pub, enr) = await (published, enrolled)
-        
+
+        // 2️⃣ Update core state
         self.publishedCourses = pub
         self.enrolledCourses = enr
-        self.isLoading = false
+
+        // 3️⃣ Derived state (depends on enrollments)
+        await calculateCompletedCourses(userId: userId)
+        await cacheCourseProgress(userId: userId)
+
+        // 4️⃣ Secondary side-effects
         await checkForInactivityNudge(userId: userId)
-        // ✅ after courses load
         await scheduleDeadlineNotifications(userId: userId)
         await loadDeadlines(userId: userId)
 
-        
+        // 5️⃣ Done
+        isLoading = false
     }
+    
+    private func cacheCourseProgress(userId: UUID) async {
+        do {
+            struct EnrollmentProgress: Codable {
+                let course_id: UUID
+                let progress: Double?
+            }
+
+            let enrollments: [EnrollmentProgress] = try await courseService.supabase
+                .from("enrollments")
+                .select("course_id, progress")
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+
+            var map: [UUID: Double] = [:]
+            for enrollment in enrollments {
+                map[enrollment.course_id] = enrollment.progress ?? 0.0
+            }
+
+            self.courseProgressMap = map
+        } catch {
+            print("❌ Failed to cache course progress:", error)
+            self.courseProgressMap = [:]
+        }
+    }
+
+    
     func loadDeadlines(userId: UUID) async {
         let deadlines = await courseService.fetchDeadlinesForLearner(userId: userId)
 
@@ -101,6 +152,10 @@ final class LearnerDashboardViewModel: ObservableObject {
                 date: Date().addingTimeInterval(10) // 10 sec test, later schedule immediate
             )
         }
+    }
+
+    func getCachedProgress(for courseId: UUID) -> Double {
+        courseProgressMap[courseId] ?? 0.0
     }
 
     
@@ -152,24 +207,49 @@ final class LearnerDashboardViewModel: ObservableObject {
     }
     
     /// Get course progress for a user
-    func getCourseProgress(courseId: UUID, userId: UUID) async -> Double {
+//    func getCourseProgress(courseId: UUID, userId: UUID) async -> Double {
+//        do {
+//            struct EnrollmentProgress: Codable {
+//                let progress: Double?
+//            }
+//            
+//            let result: [EnrollmentProgress] = try await courseService.supabase
+//                .from("enrollments")
+//                .select("progress")
+//                .eq("user_id", value: userId)
+//                .eq("course_id", value: courseId)
+//                .execute()
+//                .value
+//            
+//            return result.first?.progress ?? 0.0
+//        } catch {
+//            print("❌ Error fetching progress: \(error.localizedDescription)")
+//            return 0.0
+//        }
+//    }
+
+    
+    private func calculateCompletedCourses(userId: UUID) async {
+        // Fetch all enrollments with progress
         do {
             struct EnrollmentProgress: Codable {
+                let course_id: UUID
                 let progress: Double?
             }
             
-            let result: [EnrollmentProgress] = try await courseService.supabase
+            let enrollments: [EnrollmentProgress] = try await courseService.supabase
                 .from("enrollments")
-                .select("progress")
+                .select("course_id, progress")
                 .eq("user_id", value: userId)
-                .eq("course_id", value: courseId)
                 .execute()
                 .value
             
-            return result.first?.progress ?? 0.0
+            let completed = enrollments.filter { ($0.progress ?? 0) >= 1.0 }
+            self.completedCoursesCount = completed.count
+            self.completedCourseIds = Set(completed.map { $0.course_id })
+            
         } catch {
-            print("❌ Error fetching progress: \(error.localizedDescription)")
-            return 0.0
+            print("Failed to calculate completed courses: \(error)")
         }
     }
 }

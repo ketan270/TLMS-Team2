@@ -16,6 +16,8 @@ struct LearnerDashboardView: View {
     
     @State private var showProfile = false
     @State private var showCertificates = false
+    @State private var dashboardRefreshTrigger = UUID()
+    
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
@@ -24,17 +26,22 @@ struct LearnerDashboardView: View {
             courseListView(courses: viewModel.publishedCourses.filter { course in
                 !viewModel.isEnrolled(course)
             }, title: "Browse Courses", showSearch: false)
-                .tabItem {
-                    Label("Browse", systemImage: "book.fill")
-                }
-                .tag(0)
+            .tabItem {
+                Label("Browse", systemImage: "book.fill")
+            }
+            .tag(0)
             
             // My Courses Tab
-            courseListView(courses: viewModel.enrolledCourses, title: "My Courses", showSearch: false)
-                .tabItem {
-                    Label("My Courses", systemImage: "person.fill")
-                }
-                .tag(1)
+            courseListView(
+                courses: viewModel.enrolledCourses,
+                title: "My Courses",
+                showSearch: false
+            )
+            .id(dashboardRefreshTrigger)
+            .tabItem {
+                Label("My Courses", systemImage: "person.fill")
+            }
+            .tag(1)
             
             // Search Tab
             searchView()
@@ -50,7 +57,14 @@ struct LearnerDashboardView: View {
         .task {
             await viewModel.loadData(userId: user.id)
         }
-        .alert("Error", isPresented: $viewModel.showingError) {
+        .onReceive(
+            NotificationCenter.default.publisher(for: .courseProgressUpdated)
+        ) { _ in
+            dashboardRefreshTrigger = UUID()   // 🔥 THIS LINE WAS MISSING
+            Task {
+                await viewModel.loadData(userId: user.id)
+            }
+        }        .alert("Error", isPresented: $viewModel.showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.errorMessage ?? "Failed to enroll in course")
@@ -135,14 +149,6 @@ struct LearnerDashboardView: View {
                     }
                 }
             }
-
-//            .toolbar {
-//                ToolbarItem(placement: .navigationBarTrailing) {
-//                    Button(role: .destructive, action: handleLogout) {
-//                        Label("Sign Out", systemImage: "arrow.right.square")
-//                    }
-//                }
-//            }
         }
         .id(user.id)
         .sheet(isPresented: $showProfile) {
@@ -153,7 +159,7 @@ struct LearnerDashboardView: View {
                 CertificatesListView(userId: user.id)
             }
         }
-
+        
     }
     
     @ViewBuilder
@@ -191,7 +197,7 @@ struct LearnerDashboardView: View {
                             StatCard(
                                 icon: "checkmark.seal.fill",
                                 title: "Completed",
-                                value: "0",
+                                value: "\(viewModel.completedCoursesCount)",
                                 color: AppTheme.successGreen
                             )
                         }
@@ -203,9 +209,9 @@ struct LearnerDashboardView: View {
                                     Text("Upcoming Deadlines")
                                         .font(.title3.bold())
                                         .foregroundColor(AppTheme.primaryText)
-
+                                    
                                     Spacer()
-
+                                    
                                     if viewModel.upcomingDeadlines.isEmpty {
                                         Text("No deadlines")
                                             .font(.caption)
@@ -213,7 +219,7 @@ struct LearnerDashboardView: View {
                                     }
                                 }
                                 .padding(.horizontal)
-
+                                
                                 if viewModel.upcomingDeadlines.isEmpty {
                                     LearnerEmptyState(
                                         icon: "calendar",
@@ -234,7 +240,7 @@ struct LearnerDashboardView: View {
                             }
                             .padding(.top, 6)
                         }
-
+                        
                         
                         // Sort Options (scrollable to prevent truncation)
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -260,12 +266,12 @@ struct LearnerDashboardView: View {
                                         .background(
                                             viewModel.selectedSortOption == option ?
                                             AppTheme.primaryBlue :
-                                            Color.clear
+                                                Color.clear
                                         )
                                         .foregroundColor(
                                             viewModel.selectedSortOption == option ?
-                                            .white :
-                                            AppTheme.primaryBlue
+                                                .white :
+                                                AppTheme.primaryBlue
                                         )
                                         .cornerRadius(16)
                                         .overlay(
@@ -289,31 +295,6 @@ struct LearnerDashboardView: View {
                                 ProgressView()
                                     .padding()
                             } else {
-                                // Use filteredCourses if we are browsing (showing published courses),
-                                // but for "My Courses" we might want to show all or filter them too.
-                                // The original code used `getFilteredAndSortedCourses(from: courses)`.
-                                // However, in the ViewModel I implemented `filteredCourses` which uses `publishedCourses`.
-                                // This assumes the main view is filtering published courses.
-                                // For "My Courses", we might want the same filtering logic applied to `enrolledCourses`.
-                                // But `filteredCourses` in VM is hardcoded to `publishedCourses`.
-                                // Let's adjust: I'll manually filter here using VM logic if needed, or better,
-                                // the VM should probably expose a method to filter ANY list.
-                                // Or simpler: `getFilteredAndSortedCourses` logic was moved to `filteredCourses` property.
-                                // If I use `viewModel.filteredCourses` here, it is based on `publishedCourses`.
-                                // So for "My Courses" tab, if I want to search/sort, I need to apply it to `enrolledCourses`.
-                                //
-                                // Wait, the original View called `getFilteredAndSortedCourses(from: courses)` where `courses` was passed in.
-                                // I should keep a helper in View or use VM method.
-                                // Since I can't easily change VM interface right now without another step,
-                                // I will bring back the filtering helper (modified to use VM state) or
-                                // check if `courses` argument is `publishedCourses`?
-                                // If `courses` == `viewModel.publishedCourses`, use `viewModel.filteredCourses`.
-                                // But `courses` is passed by value (copy) or ref.
-                                //
-                                // Actually, simpler solution: implement `getFilteredAndSortedCourses` locally using VM state,
-                                // just like before, but accessing `viewModel.searchText` etc.
-                                // This keeps behavior identical for "My Courses" too.
-
                                 let filteredCourses = getFilteredAndSortedCourses(from: courses)
                                 
                                 if filteredCourses.isEmpty {
@@ -331,22 +312,22 @@ struct LearnerDashboardView: View {
                                     LazyVStack(spacing: 16) {
                                         ForEach(filteredCourses) { course in
                                             NavigationLink(destination:
-                                                LearnerCourseDetailView(
-                                                    course: course,
-                                                    isEnrolled: viewModel.isEnrolled(course),
-                                                    userId: user.id,
-                                                    onEnroll: {
-                                                        let success = await viewModel.enroll(course: course, userId: user.id)
-                                                        if success {
-                                                            selectedTab = 1
-                                                        }
-                                                    }
-                                                )
+                                                            LearnerCourseDetailView(
+                                                                course: course,
+                                                                isEnrolled: viewModel.isEnrolled(course),
+                                                                userId: user.id,
+                                                                onEnroll: {
+                                                                    let success = await viewModel.enroll(course: course, userId: user.id)
+                                                                    if success {
+                                                                        selectedTab = 1
+                                                                    }
+                                                                }
+                                                            )
                                             ) {
                                                 PublishedCourseCard(
                                                     course: course,
                                                     isEnrolled: viewModel.isEnrolled(course),
-                                                    userId: user.id,
+                                                    progress: viewModel.getCachedProgress(for: course.id),
                                                     onEnroll: {
                                                         let success = await viewModel.enroll(course: course, userId: user.id)
                                                         if success {
@@ -393,11 +374,7 @@ struct LearnerDashboardView: View {
             ProfileView(user: user)
         }
         .task {
-            // Data loading is handled at top level, but maybe refresh here?
-            // Original code had .task { await loadData() } on TabView AND inside courseListView?
-            // Original line 295: .task { await loadData() } on NavigationStack in courseListView.
-            // Original line 54: .task { await loadData() } on TabView.
-            // Duplicate calls. I'll stick to top level or maybe both is fine (idempotent-ish).
+            
         }
     }
     
@@ -453,16 +430,16 @@ struct LearnerDashboardView: View {
     struct PublishedCourseCard: View {
         let course: Course
         let isEnrolled: Bool
-        let userId: UUID
+        let progress: Double                // 🔥 SINGLE SOURCE OF TRUTH
         var onEnroll: () async -> Void
         
         @Environment(\.colorScheme) var colorScheme
         @State private var isEnrolling = false
         @State private var showSuccess = false
         @State private var showPaymentRequired = false
-        @State private var courseProgress: Double = 0.0
         
-        // Fallbacks for category styling
+        // MARK: - Category Styling
+        
         private var categoryColor: Color {
             switch course.category.lowercased() {
             case "design": return AppTheme.accentPurple
@@ -470,8 +447,8 @@ struct LearnerDashboardView: View {
             case "marketing": return AppTheme.warningOrange
             case "business": return AppTheme.accentTeal
             case "data", "analytics": return AppTheme.successGreen
-            case "photography": return Color.pink
-            case "music": return Color.indigo
+            case "photography": return .pink
+            case "music": return .indigo
             default: return AppTheme.secondaryText
             }
         }
@@ -489,10 +466,13 @@ struct LearnerDashboardView: View {
             }
         }
         
+        // MARK: - View
+        
         var body: some View {
             VStack(alignment: .leading, spacing: 0) {
+                
+                // Header
                 HStack(alignment: .top, spacing: 16) {
-                    // Course Icon with gradient
                     ZStack {
                         RoundedRectangle(cornerRadius: AppTheme.mediumCornerRadius)
                             .fill(
@@ -515,65 +495,46 @@ struct LearnerDashboardView: View {
                             )
                     }
                     
-                    // Course Info
                     VStack(alignment: .leading, spacing: 8) {
                         Text(course.title)
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(AppTheme.primaryText)
                             .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
                         
                         Text(course.description)
                             .font(.system(size: 14))
                             .foregroundColor(AppTheme.secondaryText)
                             .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
                         
                         HStack(spacing: 10) {
-                            // Category badge
-                            HStack(spacing: 4) {
-                                Image(systemName: "folder.fill")
-                                    .font(.system(size: 9))
-                                Text(course.category)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .lineLimit(1)
-                            }
-                            .foregroundColor(categoryColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(categoryColor.opacity(0.12))
-                            .cornerRadius(6)
+                            Label(course.category, systemImage: "folder.fill")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(categoryColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(categoryColor.opacity(0.12))
+                                .cornerRadius(6)
                             
-                            // Module count
-                            HStack(spacing: 3) {
-                                Image(systemName: "list.bullet")
-                                    .font(.system(size: 9))
-                                Text("\(course.modules.count)")
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .foregroundColor(AppTheme.secondaryText)
+                            Label("\(course.modules.count)", systemImage: "list.bullet")
+                                .font(.system(size: 11))
+                                .foregroundColor(AppTheme.secondaryText)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(16)
                 
-                // Bottom section with action
+                // Footer
                 HStack {
                     if isEnrolled {
-                        // Progress indicator for enrolled courses
                         HStack(spacing: 12) {
-                            MiniProgressRing(progress: courseProgress)
+                            MiniProgressRing(progress: progress)
                             
                             VStack(alignment: .leading, spacing: 2) {
-                                if courseProgress >= 1.0 {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "checkmark.seal.fill")
-                                            .foregroundColor(AppTheme.successGreen)
-                                        Text("Completed")
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundColor(AppTheme.successGreen)
-                                    }
+                                if progress >= 1.0 {
+                                    Label("Completed", systemImage: "checkmark.seal.fill")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(AppTheme.successGreen)
+                                    
                                     Text("Certificate ready!")
                                         .font(.system(size: 11))
                                         .foregroundColor(AppTheme.secondaryText)
@@ -581,7 +542,8 @@ struct LearnerDashboardView: View {
                                     Text("In Progress")
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundColor(AppTheme.primaryText)
-                                    Text("\(Int(courseProgress * 100))% complete")
+                                    
+                                    Text("\(Int(progress * 100))% complete")
                                         .font(.system(size: 11))
                                         .foregroundColor(AppTheme.secondaryText)
                                 }
@@ -589,48 +551,36 @@ struct LearnerDashboardView: View {
                         }
                         
                         Spacer()
-                        
                         Image(systemName: "chevron.right")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(AppTheme.secondaryText)
+                        
                     } else {
                         Spacer()
                         
-                        Button(action: {
-                            // Check if course is paid
+                        Button {
                             if let price = course.price, price > 0 {
-                                // Show payment required message
                                 showPaymentRequired = true
                             } else {
-                                // Free course - enroll directly
                                 Task {
                                     isEnrolling = true
                                     await onEnroll()
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                                    withAnimation {
                                         showSuccess = true
                                     }
-                                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                    try? await Task.sleep(nanoseconds: 1_200_000_000)
                                     showSuccess = false
                                     isEnrolling = false
                                 }
                             }
-                        }) {
+                        } label: {
                             Group {
                                 if showSuccess {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                        Text("Enrolled!")
-                                    }
-                                    .foregroundColor(AppTheme.successGreen)
+                                    Label("Enrolled!", systemImage: "checkmark.circle.fill")
                                 } else if isEnrolling {
                                     ProgressView()
-                                        .scaleEffect(0.8)
-                                        .tint(.white)
                                 } else {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "plus.circle.fill")
-                                        Text("Enroll")
-                                    }
+                                    Label("Enroll", systemImage: "plus.circle.fill")
                                 }
                             }
                             .font(.system(size: 14, weight: .semibold))
@@ -638,18 +588,11 @@ struct LearnerDashboardView: View {
                             .frame(width: 120, height: 36)
                             .background(
                                 showSuccess ?
-                                LinearGradient(colors: [AppTheme.successGreen.opacity(0.15), AppTheme.successGreen.opacity(0.15)], startPoint: .topLeading, endPoint: .bottomTrailing) :
-                                AppTheme.oceanGradient
+                                LinearGradient(colors: [AppTheme.successGreen.opacity(0.15), AppTheme.successGreen.opacity(0.15)], startPoint: .topLeading, endPoint: .bottomTrailing) : AppTheme.oceanGradient
                             )
                             .cornerRadius(18)
-                            .shadow(
-                                color: showSuccess ? .clear : AppTheme.primaryBlue.opacity(0.3),
-                                radius: 8,
-                                y: 4
-                            )
                         }
                         .disabled(isEnrolling)
-                        .pressableScale()
                     }
                 }
                 .padding(.horizontal, 16)
@@ -657,70 +600,49 @@ struct LearnerDashboardView: View {
             }
             .background(AppTheme.cardBackground)
             .cornerRadius(AppTheme.cornerRadius)
-            .shadow(
-                color: AppTheme.cardShadow.color,
-                radius: AppTheme.cardShadow.radius,
-                x: AppTheme.cardShadow.x,
-                y: AppTheme.cardShadow.y
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                    .stroke(
-                        isEnrolled ? 
-                        LinearGradient(
-                            colors: [AppTheme.successGreen.opacity(0.3), AppTheme.successGreen.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ) :
-                        LinearGradient(colors: [Color.clear], startPoint: .top, endPoint: .bottom),
-                        lineWidth: isEnrolled ? 1.5 : 0
-                    )
-            )
-            .scaleEffect(showSuccess ? 1.02 : 1.0)
-            .animation(AppTheme.springAnimation, value: showSuccess)
+            .shadow(color: AppTheme.cardShadow.color,
+                    radius: AppTheme.cardShadow.radius,
+                    x: AppTheme.cardShadow.x,
+                    y: AppTheme.cardShadow.y)
             .alert("Payment Required", isPresented: $showPaymentRequired) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Please open the course details to purchase this course.")
             }
-            .onAppear {
-                if isEnrolled {
-                    loadProgress()
-                }
-            }
-        }
-        
-        private func loadProgress() {
-            Task {
-                courseProgress = await getCourseProgress(userId: userId, courseId: course.id)
-                print("📊 Loaded progress for \(course.title): \(courseProgress * 100)%")
-            }
-        }
-        
-        private func getCourseProgress(userId: UUID, courseId: UUID) async -> Double {
-            do {
-                let supabase = SupabaseManager.shared.client
-                
-                // Fetch enrollment to get progress
-                struct EnrollmentProgress: Codable {
-                    let progress: Double?
-                }
-                
-                let enrollments: [EnrollmentProgress] = try await supabase
-                    .from("enrollments")
-                    .select("progress")
-                    .eq("user_id", value: userId.uuidString)
-                    .eq("course_id", value: courseId.uuidString)
-                    .execute()
-                    .value
-                
-                return enrollments.first?.progress ?? 0.0
-            } catch {
-                print("❌ Error fetching progress: \(error)")
-                return 0.0
-            }
         }
     }
+    
+    //
+    //        private func loadProgress() {
+    //            Task {
+    //                courseProgress = await getCourseProgress(userId: userId, courseId: course.id)
+    //                print("📊 Loaded progress for \(course.title): \(courseProgress * 100)%")
+    //            }
+    //        }
+    //
+    //        private func getCourseProgress(userId: UUID, courseId: UUID) async -> Double {
+    //            do {
+    //                let supabase = SupabaseManager.shared.client
+    //
+    //                // Fetch enrollment to get progress
+    //                struct EnrollmentProgress: Codable {
+    //                    let progress: Double?
+    //                }
+    //
+    //                let enrollments: [EnrollmentProgress] = try await supabase
+    //                    .from("enrollments")
+    //                    .select("progress")
+    //                    .eq("user_id", value: userId.uuidString)
+    //                    .eq("course_id", value: courseId.uuidString)
+    //                    .execute()
+    //                    .value
+    //
+    //                return enrollments.first?.progress ?? 0.0
+    //            } catch {
+    //                print("❌ Error fetching progress: \(error)")
+    //                return 0.0
+    //            }
+    //        }
     
     // MARK: - Stat Card Component
     
@@ -762,16 +684,16 @@ struct LearnerDashboardView: View {
     }
     struct DeadlineCard: View {
         let deadline: CourseDeadline
-
+        
         var body: some View {
             VStack(alignment: .leading, spacing: 10) {
-
+                
                 HStack {
                     Image(systemName: "calendar.badge.clock")
                         .foregroundColor(AppTheme.primaryBlue)
-
+                    
                     Spacer()
-
+                    
                     Text(timeRemainingText(from: deadline.deadlineAt))
                         .font(.caption.bold())
                         .padding(.horizontal, 10)
@@ -780,12 +702,12 @@ struct LearnerDashboardView: View {
                         .foregroundColor(AppTheme.primaryBlue)
                         .cornerRadius(10)
                 }
-
+                
                 Text(deadline.title)
                     .font(.headline)
                     .foregroundColor(AppTheme.primaryText)
                     .lineLimit(2)
-
+                
                 Text(deadline.deadlineAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -796,25 +718,23 @@ struct LearnerDashboardView: View {
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
         }
-
+        
         private func timeRemainingText(from date: Date) -> String {
             let interval = date.timeIntervalSinceNow
             if interval <= 0 { return "Due" }
-
+            
             let hours = Int(interval / 3600)
             let days = hours / 24
-
+            
             if days >= 1 { return "\(days)d left" }
             if hours >= 1 { return "\(hours)h left" }
-
+            
             let mins = Int(interval / 60)
             return "\(max(mins, 1))m left"
         }
     }
-
-
-// MARK: - Components
-// Components are defined in separate files (LearnerDashboardComponents.swift, etc.)
+    
+    // Components are defined in separate files (LearnerDashboardComponents.swift, etc.)
     
     private func colorForCategory(_ category: String) -> Color {
         switch category {
@@ -827,4 +747,3 @@ struct LearnerDashboardView: View {
         }
     }
 }
-

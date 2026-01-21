@@ -20,6 +20,7 @@ struct LessonContentEditorView: View {
     @State private var selectedFileURL: URL?
     @State private var selectedFileName: String?
     @State private var showSuccessAlert = false
+    @State private var transcript: String = ""
     
     // Derived binding to get the lesson
     private var lesson: Lesson? {
@@ -68,13 +69,36 @@ struct LessonContentEditorView: View {
                             TextContentEditor(textContent: $textContent)
                             
                         case .video:
-                            MediaContentEditor(
-                                contentType: .video,
-                                description: $contentDescription,
-                                selectedFileURL: $selectedFileURL,
-                                selectedFileName: $selectedFileName,
-                                showFilePicker: $showFilePicker
-                            )
+                            VStack(spacing: 24) {
+                                MediaContentEditor(
+                                    contentType: .video,
+                                    description: $contentDescription,
+                                    selectedFileURL: $selectedFileURL,
+                                    selectedFileName: $selectedFileName,
+                                    showFilePicker: $showFilePicker
+                                )
+
+                                // MARK: - Transcript Editor
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Video Transcript")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal)
+
+                                    Text("Paste or edit the transcript for this video. Learners will be able to read and download it.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal)
+
+                                    TextEditor(text: $transcript)
+                                        .frame(minHeight: 180)
+                                        .scrollContentBackground(.hidden)
+                                        .padding(12)
+                                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                                        .cornerRadius(12)
+                                        .padding(.horizontal)
+                                }
+                            }
                             
                         case .pdf:
                             MediaContentEditor(
@@ -143,19 +167,25 @@ struct LessonContentEditorView: View {
     
     private func loadExistingContent() {
         guard let currentLesson = lesson else { return }
-        
+
         switch currentLesson.type {
         case .text:
             textContent = currentLesson.textContent ?? ""
+
         case .video, .pdf, .presentation:
             contentDescription = currentLesson.contentDescription ?? ""
             selectedFileName = currentLesson.fileName
+
             if let urlString = currentLesson.fileURL {
                 selectedFileURL = URL(string: urlString)
             }
+
         case .quiz:
             break
         }
+
+        // Load transcript (video only; safe for others)
+        transcript = currentLesson.transcript ?? ""
     }
     
     private func saveContent() {
@@ -170,12 +200,19 @@ struct LessonContentEditorView: View {
         case .text:
             updatedLesson.textContent = textContent
             
-        case .video, .pdf, .presentation:
+        case .video:
             updatedLesson.contentDescription = contentDescription
             updatedLesson.fileName = selectedFileName
-            
-            // In a real app, you would upload the file here and get a URL
-            // For now, we'll store the local URL as a string
+            updatedLesson.transcript = transcript   // ✅ SAVE TRANSCRIPT
+
+            if let url = selectedFileURL {
+                updatedLesson.fileURL = url.path
+            }
+
+        case .pdf, .presentation:
+            updatedLesson.contentDescription = contentDescription
+            updatedLesson.fileName = selectedFileName
+
             if let url = selectedFileURL {
                 updatedLesson.fileURL = url.path
             }
