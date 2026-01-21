@@ -533,6 +533,26 @@ class CourseService: ObservableObject {
                 return
             }
             
+            // Get instructor name from course
+            var instructorName = "TLMS Instructor"
+            do {
+                struct EducatorProfile: Decodable {
+                    let full_name: String
+                }
+                
+                let educator: EducatorProfile = try await supabase
+                    .from("user_profiles")
+                    .select("full_name")
+                    .eq("id", value: course.educatorID.uuidString)
+                    .single()
+                    .execute()
+                    .value
+                
+                instructorName = educator.full_name
+            } catch {
+                print("⚠️ Failed to fetch educator name: \(error)")
+            }
+
             // Generate certificate
             let certificateNumber = Certificate.generateCertificateNumber()
             let now = ISO8601DateFormatter().string(from: Date())
@@ -545,7 +565,7 @@ class CourseService: ObservableObject {
                 course_name: courseName,
                 completion_date: now,
                 certificate_number: certificateNumber,
-                instructor_name: "TLMS Instructor", // TODO: Get actual instructor name
+                instructor_name: instructorName,
                 created_at: now
             )
             
@@ -566,15 +586,28 @@ class CourseService: ObservableObject {
         userId: UUID,
         course: Course
     ) async -> Double {
+        
+        // 1. Re-fetch course to ensure we have the latest modules (JSONB)
+        // This is critical because the passed 'course' object might be from a list view
+        // that didn't fully decode modules or is stale.
+        guard let freshCourse = await fetchCourse(by: course.id) else {
+            print("❌ Failed to refetch course for progress calculation")
+            return 0.0
+        }
 
-        // 1. Total lessons in the course
-        let totalLessons = course.modules
+        // 2. Total lessons in the course
+        let totalLessons = freshCourse.modules
             .flatMap { $0.lessons }
             .count
 
-        guard totalLessons > 0 else { return 0.0 }
+        guard totalLessons > 0 else {
+            print("⚠️ Total lessons is 0 for course: \(freshCourse.title). Returning 0 progress.")
+            return 0.0
+        }
 
-        // 2. Fetch completed lessons for this user + course
+        print("DEBUG: Calculating progress for Course: \(freshCourse.title), Total Lessons: \(totalLessons)")
+
+        // 3. Fetch completed lessons for this user + course
         struct CompletedLesson: Decodable {
             let lesson_id: UUID
         }
@@ -589,9 +622,11 @@ class CourseService: ObservableObject {
                 .value
 
             let completedCount = completed.count
-
-            // 3. Calculate progress safely
+            
+            // 4. Calculate progress safely
             let progress = Double(completedCount) / Double(totalLessons)
+            
+            print("DEBUG: Completed Lessons: \(completedCount), Total: \(totalLessons), Progress: \(progress)")
 
             // Clamp for safety (never exceed 1.0)
             return min(max(progress, 0.0), 1.0)
