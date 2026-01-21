@@ -373,10 +373,13 @@ struct LearnerDashboardView: View {
         // 4. Apply sorting (Default for Browse tab)
         switch viewModel.selectedSortOption {
         case .relevance:
+            // Relevance: Sort by most recently created courses first
             return filtered.sorted { $0.createdAt > $1.createdAt }
         case .popularity:
+            // Popularity: Sort by highest enrollment count first
             return filtered.sorted { $0.enrollmentCount > $1.enrollmentCount }
         case .newest:
+            // Newest: Sort by most recently created courses first
             return filtered.sorted { $0.createdAt > $1.createdAt }
         }
     }
@@ -526,6 +529,17 @@ struct LearnerDashboardView: View {
                             .foregroundColor(AppTheme.secondaryText)
                         
                     } else {
+                        // Price Label
+                        if let price = course.price, price > 0 {
+                            Text(price.formatted(.currency(code: "INR")))
+                                .font(.headline)
+                                .foregroundColor(AppTheme.primaryText)
+                        } else {
+                            Text("Free")
+                                .font(.headline)
+                                .foregroundColor(AppTheme.successGreen)
+                        }
+                        
                         Spacer()
                         
                         Button {

@@ -30,6 +30,12 @@ struct LearnerCourseDetailView: View {
     @State private var showCertificate = false
     @State private var isCheckingProgress = false
 
+    @State private var reviews: [CourseReview] = []
+    @State private var userReview: CourseReview?
+    @State private var showReviewSubmission = false
+    @State private var isCourseCompleted = false
+    @StateObject private var reviewService = ReviewService()
+
     @StateObject private var paymentService = PaymentService()
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthService
@@ -41,171 +47,281 @@ struct LearnerCourseDetailView: View {
         return false
     }
 
+    // MARK: - Body
+
     var body: some View {
         Group {
             if course.status != .published {
                 CourseNotAvailableView()
             } else {
-                ScrollView {
-                    VStack(spacing: 24) {
-
-                        // MARK: - Header
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Course")
-                                        .font(.caption)
-                                        .foregroundColor(AppTheme.secondaryText)
-                                    Text(course.category)
-                                        .font(.subheadline.bold())
-                                        .foregroundColor(AppTheme.primaryBlue)
-                                        .lineLimit(1)
-                                }
-
-                                Spacer()
-
-                                if isEnrolled {
-                                    Label("Enrolled", systemImage: "checkmark.circle.fill")
-                                        .font(.caption.bold())
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(AppTheme.successGreen.opacity(0.1))
-                                        .foregroundColor(AppTheme.successGreen)
-                                        .cornerRadius(8)
-                                } else if isPaidCourse {
-                                    if let price = course.price {
-                                        Text(price.formatted(.currency(code: "INR")))
-                                            .font(.title3.bold())
-                                            .foregroundColor(AppTheme.primaryBlue)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(AppTheme.primaryBlue.opacity(0.1))
-                                            .cornerRadius(8)
-                                    }
-                                }
-                            }
-
-                            Divider()
-
-                            Text(course.title)
-                                .font(.title2.bold())
-                                .foregroundColor(AppTheme.primaryText)
-
-                            Text(course.description)
-                                .font(.body)
-                                .foregroundColor(AppTheme.secondaryText)
-
-                            HStack(spacing: 16) {
-                                Label("\(course.modules.count) Modules", systemImage: "book.fill")
-
-                                if let enrolledCount = course.enrolledCount {
-                                    Label("\(enrolledCount) Students", systemImage: "person.2.fill")
-                                }
-
-                                if let rating = course.rating {
-                                    HStack(spacing: 2) {
-                                        Image(systemName: "star.fill")
-                                            .foregroundColor(.orange)
-                                        Text(String(format: "%.1f", rating))
-                                    }
-                                }
-                            }
-                            .font(.caption)
-                            .foregroundColor(AppTheme.secondaryText)
-                        }
-                        .padding()
-                        .background(AppTheme.secondaryGroupedBackground)
-                        .cornerRadius(16)
-                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                        .padding(.horizontal)
-
-                        // MARK: - Course Content
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Course Content")
-                                .font(.title3.bold())
-                                .foregroundColor(AppTheme.primaryText)
-                                .padding(.horizontal)
-
-                            if course.modules.isEmpty {
-                                Text("No content available yet.")
-                                    .font(.subheadline)
-                                    .foregroundColor(AppTheme.secondaryText)
-                                    .padding(.horizontal)
-                            } else {
-                                ForEach(Array(course.modules.enumerated()), id: \.element.id) { index, module in
-                                    ModulePreviewCard(
-                                        module: module,
-                                        moduleNumber: index + 1,
-                                        isExpanded: expandedModules.contains(module.id),
-                                        isEnrolled: isEnrolled,
-                                        onToggle: {
-                                            withAnimation {
-                                                if expandedModules.contains(module.id) {
-                                                    expandedModules.remove(module.id)
-                                                } else {
-                                                    expandedModules.insert(module.id)
-                                                }
-                                            }
-                                        },
-                                        onLessonTap: { lesson in
-                                            if isEnrolled {
-                                                selectedLesson = lesson
-                                                showLesson = true
-                                            } else {
-                                                showEnrollmentAlert = true
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(minLength: 80)
-                    }
-                    .padding(.top)
-                    .background(AppTheme.groupedBackground)
-                    .navigationTitle("Course Details")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .fullScreenCover(isPresented: $showCompletionPopup) {
-                        CourseCompletionView(
-                            course: course,
-                            userId: userId,
-                            onDismiss: {
-                                showCompletionPopup = false
-                            },
-                            onViewCertificate: {
-                                showCompletionPopup = false
-                                showCertificate = true
-                            }
-                        )
-                    }
-        .fullScreenCover(isPresented: $showCertificate) {
-            NavigationView {
-                 // Assuming CertificateDetailView exists or reusing list
-                 // Since we don't have a direct CertificateDetailView ready-to-use in context here,
-                 // we will route to CertificatesListView which handles fetching certificates.
-                 CertificatesListView(userId: userId)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Close") {
-                                showCertificate = false
-                            }
-                        }
-                    }
+                mainContent
             }
         }
-        .onAppear {
-             if isEnrolled {
-                 checkForCompletion()
-             }
-        }
+    }
 
-        // MARK: - Lesson Navigation (ONE place)
+    // MARK: - Main Content
+
+    private var mainContent: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                headerSection
+                courseContentSection
+                reviewsSection
+                Spacer(minLength: 80)
+            }
+            .padding(.top)
+        }
+        .background(AppTheme.groupedBackground)
+        .navigationTitle("Course Details")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if isEnrolled {
+                checkForCompletion()
+            }
+            fetchReviews()
+        }
+        .fullScreenCover(isPresented: $showCompletionPopup, content: completionPopupContent)
+        .fullScreenCover(isPresented: $showCertificate, content: certificateContent)
+        .sheet(isPresented: $showReviewSubmission, content: reviewSubmissionContent)
         .navigationDestination(isPresented: $showLesson) {
+            lessonDestination
+        }
+        .safeAreaInset(edge: .bottom) {
+            if !isEnrolled {
+                enrollmentBottomBar
+            }
+        }
+        .sheet(isPresented: $showPaymentSheet, content: paymentSheetContent)
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
+        .alert("Enrollment Required", isPresented: $showEnrollmentAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Enroll Now") {}
+        } message: {
+            Text("Please enroll in this course to access the lesson content.")
+        }
+    }
+    
+    // MARK: - Extracted Views
+    
+    @ViewBuilder
+    private func completionPopupContent() -> some View {
+        CourseCompletionView(
+            course: course,
+            userId: userId,
+            onDismiss: { showCompletionPopup = false },
+            onViewCertificate: {
+                showCompletionPopup = false
+                showCertificate = true
+            }
+        )
+    }
+    
+    @ViewBuilder
+    private func certificateContent() -> some View {
+        NavigationView {
+            CertificatesListView(userId: userId)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Close") {
+                            showCertificate = false
+                        }
+                    }
+                }
+        }
+    }
+    
+    @ViewBuilder
+    private func reviewSubmissionContent() -> some View {
+        ReviewSubmissionView(
+            course: course,
+            userId: userId,
+            existingReview: userReview,
+            onSubmissionSuccess: {
+                fetchReviews()
+            }
+        )
+    }
+    
+    @ViewBuilder
+    private func paymentSheetContent() -> some View {
+        if let url = paymentURL {
+            PaymentWebView(
+                paymentURL: url,
+                onSuccess: { paymentId in
+                    Task {
+                        await handlePaymentSuccess(paymentId: paymentId)
+                    }
+                },
+                onFailure: {
+                    errorMessage = "Payment was cancelled or failed"
+                    showError = true
+                }
+            )
+        }
+    }
+
+    // MARK: - Header Section
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Course")
+                        .font(.caption)
+                        .foregroundColor(AppTheme.secondaryText)
+                    Text(course.category)
+                        .font(.subheadline.bold())
+                        .foregroundColor(AppTheme.primaryBlue)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if isEnrolled {
+                    Label("Enrolled", systemImage: "checkmark.circle.fill")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(AppTheme.successGreen.opacity(0.1))
+                        .foregroundColor(AppTheme.successGreen)
+                        .cornerRadius(8)
+                } else if isPaidCourse, let price = course.price {
+                    Text(price.formatted(.currency(code: "INR")))
+                        .font(.title3.bold())
+                        .foregroundColor(AppTheme.primaryBlue)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(AppTheme.primaryBlue.opacity(0.1))
+                        .cornerRadius(8)
+                }
+            }
+
+            Divider()
+
+            Text(course.title)
+                .font(.title2.bold())
+                .foregroundColor(AppTheme.primaryText)
+
+            Text(course.description)
+                .font(.body)
+                .foregroundColor(AppTheme.secondaryText)
+
+            HStack(spacing: 16) {
+                Label("\(course.modules.count) Modules", systemImage: "book.fill")
+
+                if let enrolledCount = course.enrolledCount {
+                    Label("\(enrolledCount) Students", systemImage: "person.2.fill")
+                }
+
+                if let rating = course.ratingAvg, course.ratingCount > 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.orange)
+                        Text(String(format: "%.1f", rating))
+                        Text("(\(course.ratingCount))")
+                            .foregroundColor(AppTheme.secondaryText)
+                    }
+                } else {
+                    Text("No ratings yet").italic()
+                }
+            }
+            .font(.caption)
+            .foregroundColor(AppTheme.secondaryText)
+        }
+        .padding()
+        .background(AppTheme.secondaryGroupedBackground)
+        .cornerRadius(16)
+        .padding(.horizontal)
+    }
+
+    // MARK: - Course Content Section
+
+    private var courseContentSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Course Content")
+                .font(.title3.bold())
+                .padding(.horizontal)
+
+            if course.modules.isEmpty {
+                Text("No content available yet.")
+                    .font(.subheadline)
+                    .foregroundColor(AppTheme.secondaryText)
+                    .padding(.horizontal)
+            } else {
+                ForEach(Array(course.modules.enumerated()), id: \.element.id) { index, module in
+                    ModulePreviewCard(
+                        module: module,
+                        moduleNumber: index + 1,
+                        isExpanded: expandedModules.contains(module.id),
+                        isEnrolled: isEnrolled,
+                        onToggle: {
+                            withAnimation {
+                                expandedModules.toggle(module.id)
+                            }
+                        },
+                        onLessonTap: { lesson in
+                            if isEnrolled {
+                                selectedLesson = lesson
+                                showLesson = true
+                            } else {
+                                showEnrollmentAlert = true
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Reviews Section
+
+    private var reviewsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Ratings & Reviews")
+                    .font(.title3.bold())
+
+                Spacer()
+
+                if isEnrolled && canSubmitReview {
+                    Button {
+                        showReviewSubmission = true
+                    } label: {
+                        Text(userReview == nil ? "Write a Review" : "Edit Review")
+                            .font(.subheadline.bold())
+                            .foregroundColor(AppTheme.primaryBlue)
+                    }
+                }
+            }
+            .padding(.horizontal)
+
+            if reviews.isEmpty {
+                Text("No reviews yet. Be the first to share your experience!")
+                    .font(.subheadline)
+                    .foregroundColor(AppTheme.secondaryText)
+                    .padding(.horizontal)
+            } else {
+                ForEach(reviews) { review in
+                    ReviewRow(review: review)
+                        .padding(.horizontal)
+                }
+            }
+        }
+    }
+
+    // MARK: - Lesson Destination
+
+    private var lessonDestination: some View {
+        Group {
             if let lesson = selectedLesson {
-                // Only enrolled users can reach this point due to onLessonTap check
                 if lesson.type == .quiz {
-                    LearnerQuizView(lesson: lesson)
+                    LearnerQuizView(
+                        lesson: lesson, isPresented: $showLesson
+                    )
                 } else {
                     LessonContentView(
                         lesson: lesson,
@@ -216,84 +332,31 @@ struct LearnerCourseDetailView: View {
                 }
             }
         }
-
-        // MARK: - Enrollment UI
-        .safeAreaInset(edge: .bottom) {
-            if !isEnrolled {
-                enrollmentBottomBar
-            }
-        }
-        .sheet(isPresented: $showPaymentSheet) {
-            if let url = paymentURL {
-                PaymentWebView(
-                    paymentURL: url,
-                    onSuccess: { paymentId in
-                        Task {
-                            await handlePaymentSuccess(paymentId: paymentId)
-                        }
-                    },
-                    onFailure: {
-                        errorMessage = "Payment was cancelled or failed"
-                        showError = true
-                    }
-                )
-            }
-        }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage)
-        }
-        .alert("Enrollment Required", isPresented: $showEnrollmentAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Enroll Now") {
-                // Scroll to bottom where enrollment button is
-            }
-        } message: {
-            Text("Please enroll in this course to access the lesson content.")
-        }
     }
-}
-}
-}
 
     // MARK: - Enrollment Bottom Bar
 
     private var enrollmentBottomBar: some View {
         VStack {
             Divider()
-            HStack {
-                Button(action: handleEnrollmentAction) {
-                    HStack {
-                        if isEnrolling || paymentService.isLoading {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            if isPaidCourse, let price = course.price {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "cart.fill")
-                                    Text("Buy Now - \(price.formatted(.currency(code: "INR")))")
-                                }
-                                .font(.headline)
-                            } else {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                    Text("Enroll Free")
-                                }
-                                .font(.headline)
-                            }
-                        }
+            Button(action: handleEnrollmentAction) {
+                HStack {
+                    if isEnrolling || paymentService.isLoading {
+                        ProgressView().tint(.white)
+                    } else if isPaidCourse, let price = course.price {
+                        Label("Buy Now - \(price.formatted(.currency(code: "INR")))", systemImage: "cart.fill")
+                    } else {
+                        Label("Enroll Free", systemImage: "checkmark.circle.fill")
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(AppTheme.primaryBlue)
-                    .foregroundColor(.white)
-                    .cornerRadius(AppTheme.cornerRadius)
                 }
-                .disabled(isEnrolling || paymentService.isLoading)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(AppTheme.primaryBlue)
+                .foregroundColor(.white)
+                .cornerRadius(AppTheme.cornerRadius)
             }
+            .disabled(isEnrolling || paymentService.isLoading)
             .padding()
-            .background(AppTheme.secondaryGroupedBackground)
         }
     }
 
@@ -313,8 +376,8 @@ struct LearnerCourseDetailView: View {
     }
 
     private func initiatePayment() async {
-        guard let price = course.price else { return }
-        guard let user = authService.currentUser else { return }
+        guard let price = course.price,
+              let user = authService.currentUser else { return }
 
         if let order = await paymentService.createPaymentOrder(
             courseId: course.id,
@@ -322,7 +385,6 @@ struct LearnerCourseDetailView: View {
             amount: price
         ) {
             currentOrderId = order.orderId
-
             if let url = paymentService.getPaymentURL(
                 order: order,
                 userEmail: user.email,
@@ -330,67 +392,59 @@ struct LearnerCourseDetailView: View {
             ) {
                 paymentURL = url
                 showPaymentSheet = true
-            } else {
-                errorMessage = "Failed to generate payment link"
-                showError = true
             }
-        } else {
-            errorMessage = paymentService.errorMessage ?? "Failed to create payment order"
-            showError = true
         }
     }
 
     private func handlePaymentSuccess(paymentId: String) async {
-        guard let orderId = currentOrderId else {
-            errorMessage = "Order ID validation failed"
-            showError = true
-            return
-        }
-
+        guard let orderId = currentOrderId else { return }
         let success = await paymentService.verifyPayment(
             orderId: orderId,
             paymentId: paymentId,
             courseId: course.id,
             userId: userId
         )
+        if success { dismiss() }
+    }
 
-        if success {
-            dismiss()
-        } else {
-            errorMessage = paymentService.errorMessage ?? "Payment verification failed"
-            showError = true
+    private func checkForCompletion() {
+        Task {
+            let supabase = SupabaseManager.shared.client
+            struct ProgressCheck: Codable { let progress: Double? }
+
+            let result: [ProgressCheck] = try await supabase
+                .from("enrollments")
+                .select("progress")
+                .eq("user_id", value: userId)
+                .eq("course_id", value: course.id)
+                .execute()
+                .value
+
+            if let progress = result.first?.progress, progress >= 1.0 {
+                showCompletionPopup = true
+            }
         }
     }
 
-    // MARK: - Completion Logic
-    private func checkForCompletion() {
+    private var canSubmitReview: Bool { true }
+
+    private func fetchReviews() {
         Task {
-            isCheckingProgress = true
-            let supabase = SupabaseManager.shared.client
-            struct ProgressCheck: Codable {
-                let progress: Double?
-            }
-            
-            do {
-                let result: [ProgressCheck] = try await supabase
-                    .from("enrollments")
-                    .select("progress")
-                    .eq("user_id", value: userId)
-                    .eq("course_id", value: course.id)
-                    .execute()
-                    .value
-                
-                if let progress = result.first?.progress, progress >= 1.0 {
-                     if !showCertificate && !showCompletionPopup {
-                        withAnimation {
-                            showCompletionPopup = true
-                        }
-                     }
-                }
-            } catch {
-                print("Error checking progress: \(error)")
-            }
-            isCheckingProgress = false
+            reviews = await reviewService.fetchReviews(for: course.id)
+            userReview = await reviewService.fetchUserReview(courseID: course.id, userID: userId)
         }
     }
 }
+
+// MARK: - Helper
+
+private extension Set where Element == UUID {
+    mutating func toggle(_ id: UUID) {
+        if contains(id) {
+            remove(id)
+        } else {
+            insert(id)
+        }
+    }
+}
+

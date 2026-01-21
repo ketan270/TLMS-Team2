@@ -469,8 +469,22 @@ class CourseService: ObservableObject {
             return []
         }
     }
+    
+    func fetchEnrollmentProgress(userId: UUID) async throws -> [(courseId: UUID, progress: Double)] {
+        struct Row: Decodable {
+            let course_id: UUID
+            let progress: Double?
+        }
 
+        let rows: [Row] = try await supabase
+            .from("enrollments")
+            .select("course_id, progress")
+            .eq("user_id", value: userId)
+            .execute()
+            .value
 
+        return rows.map { ($0.course_id, $0.progress ?? 0.0) }
+    }
     
     /// Update course progress based on completed lessons
     func updateCourseProgress(
