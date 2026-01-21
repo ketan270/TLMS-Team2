@@ -287,6 +287,42 @@ class CourseService: ObservableObject {
         }
     }
     
+    func fetchCompletedLessonIds(
+        userId: UUID,
+        courseId: UUID
+    ) async -> Set<UUID> {
+        struct Row: Decodable {
+            let lesson_id: UUID
+        }
+
+        do {
+            let rows: [Row] = try await supabase
+                .from("lesson_completions")
+                .select("lesson_id")
+                .eq("user_id", value: userId.uuidString)
+                .eq("course_id", value: courseId.uuidString)
+                .execute()
+                .value
+
+            return Set(rows.map { $0.lesson_id })
+        } catch {
+            print("❌ Failed to fetch completed lessons:", error)
+            return []
+        }
+    }
+    
+    func isModuleCompleted(
+        module: Module,
+        completedLessonIds: Set<UUID>
+    ) -> Bool {
+        guard !module.lessons.isEmpty else { return false }
+
+        return module.lessons.allSatisfy {
+            completedLessonIds.contains($0.id)
+        }
+    }
+
+    
     // MARK: - Admin Analytics Methods
     
     func fetchAllActiveCourses() async -> [Course] {
@@ -437,68 +473,40 @@ class CourseService: ObservableObject {
 
     
     /// Update course progress based on completed lessons
-    func updateCourseProgress(userId: UUID, courseId: UUID) async {
+    func updateCourseProgress(
+        userId: UUID,
+        course: Course
+    ) async {
         do {
-            // Fetch the course to get total lesson count
-            guard let course = await fetchCourse(by: courseId) else {
-                print("❌ Could not fetch course for progress update")
-                return
-            }
-            
-            // Calculate total lessons
-            let totalLessons = course.modules.reduce(0) { $0 + $1.lessons.count }
-            guard totalLessons > 0 else {
-                print("⚠️ Course has no lessons")
-                return
-            }
-            
-            // Fetch completed lessons for this user and course
-            struct LessonCompletionQuery: Codable {
-                let lessonId: UUID
-                
-                enum CodingKeys: String, CodingKey {
-                    case lessonId = "lesson_id"
-                }
-            }
-            
-            let completions: [LessonCompletionQuery] = try await supabase
-                .from("lesson_completions")
-                .select("lesson_id")
-                .eq("user_id", value: userId)
-                .eq("course_id", value: courseId)
-                .execute()
-                .value
-            
-            let completedCount = completions.count
-            let progress = Double(completedCount) / Double(totalLessons)
-            
-            print("📊 Progress: \(completedCount)/\(totalLessons) = \(progress)")
-            
-            // Update enrollment progress
+            let progress = await calculateCourseProgress(
+                userId: userId,
+                course: course
+            )
+
             struct ProgressUpdate: Encodable {
                 let progress: Double
             }
-            
+
             try await supabase
                 .from("enrollments")
                 .update(ProgressUpdate(progress: progress))
-                .eq("user_id", value: userId)
-                .eq("course_id", value: courseId)
+                .eq("user_id", value: userId.uuidString)
+                .eq("course_id", value: course.id.uuidString)
                 .execute()
-            
-            print("✅ Progress updated successfully")
-            
-            // 🏆 AUTO-GENERATE CERTIFICATE IF 100% COMPLETE
+
             if progress >= 1.0 {
-                print("🎉 Course completed! Generating certificate...")
-                await generateCertificateIfNeeded(userId: userId, courseId: courseId, courseName: course.title)
+                await generateCertificateIfNeeded(
+                    userId: userId,
+                    courseId: course.id,
+                    courseName: course.title
+                )
             }
+
         } catch {
             print("❌ Error updating course progress: \(error)")
-            errorMessage = "Failed to update progress: \(error.localizedDescription)"
         }
     }
-    
+
     /// Generate certificate automatically when course is completed
     private func generateCertificateIfNeeded(userId: UUID, courseId: UUID, courseName: String) async {
         do {
@@ -553,6 +561,47 @@ class CourseService: ObservableObject {
             print("❌ Error generating certificate: \(error)")
         }
     }
+    
+    func calculateCourseProgress(
+        userId: UUID,
+        course: Course
+    ) async -> Double {
+
+        // 1. Total lessons in the course
+        let totalLessons = course.modules
+            .flatMap { $0.lessons }
+            .count
+
+        guard totalLessons > 0 else { return 0.0 }
+
+        // 2. Fetch completed lessons for this user + course
+        struct CompletedLesson: Decodable {
+            let lesson_id: UUID
+        }
+
+        do {
+            let completed: [CompletedLesson] = try await supabase
+                .from("lesson_completions")
+                .select("lesson_id")
+                .eq("user_id", value: userId.uuidString)
+                .eq("course_id", value: course.id.uuidString)
+                .execute()
+                .value
+
+            let completedCount = completed.count
+
+            // 3. Calculate progress safely
+            let progress = Double(completedCount) / Double(totalLessons)
+
+            // Clamp for safety (never exceed 1.0)
+            return min(max(progress, 0.0), 1.0)
+
+        } catch {
+            print("❌ Failed to calculate course progress:", error)
+            return 0.0
+        }
+    }
+
 }
 
 

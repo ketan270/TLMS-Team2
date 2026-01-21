@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import Supabase
+import PostgREST
 
 struct LearnerCourseDetailView: View {
     let course: Course
@@ -24,6 +26,9 @@ struct LearnerCourseDetailView: View {
     @State private var currentOrderId: String?
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showCompletionPopup = false
+    @State private var showCertificate = false
+    @State private var isCheckingProgress = false
 
     @StateObject private var paymentService = PaymentService()
     @Environment(\.dismiss) var dismiss
@@ -158,12 +163,42 @@ struct LearnerCourseDetailView: View {
                         Spacer(minLength: 80)
                     }
                     .padding(.top)
-                }
+                    .background(AppTheme.groupedBackground)
+                    .navigationTitle("Course Details")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .fullScreenCover(isPresented: $showCompletionPopup) {
+                        CourseCompletionView(
+                            course: course,
+                            userId: userId,
+                            onDismiss: {
+                                showCompletionPopup = false
+                            },
+                            onViewCertificate: {
+                                showCompletionPopup = false
+                                showCertificate = true
+                            }
+                        )
+                    }
+        .fullScreenCover(isPresented: $showCertificate) {
+            NavigationView {
+                 // Assuming CertificateDetailView exists or reusing list
+                 // Since we don't have a direct CertificateDetailView ready-to-use in context here,
+                 // we will route to CertificatesListView which handles fetching certificates.
+                 CertificatesListView(userId: userId)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Close") {
+                                showCertificate = false
+                            }
+                        }
+                    }
             }
         }
-        .background(AppTheme.groupedBackground)
-        .navigationTitle("Course Details")
-        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+             if isEnrolled {
+                 checkForCompletion()
+             }
+        }
 
         // MARK: - Lesson Navigation (ONE place)
         .navigationDestination(isPresented: $showLesson) {
@@ -174,8 +209,9 @@ struct LearnerCourseDetailView: View {
                 } else {
                     LessonContentView(
                         lesson: lesson,
-                        courseId: course.id,
-                        userId: userId
+                        course: course,
+                        userId: userId,
+                        selectedLesson: $selectedLesson
                     )
                 }
             }
@@ -217,6 +253,9 @@ struct LearnerCourseDetailView: View {
             Text("Please enroll in this course to access the lesson content.")
         }
     }
+}
+}
+}
 
     // MARK: - Enrollment Bottom Bar
 
@@ -320,6 +359,38 @@ struct LearnerCourseDetailView: View {
         } else {
             errorMessage = paymentService.errorMessage ?? "Payment verification failed"
             showError = true
+        }
+    }
+
+    // MARK: - Completion Logic
+    private func checkForCompletion() {
+        Task {
+            isCheckingProgress = true
+            let supabase = SupabaseManager.shared.client
+            struct ProgressCheck: Codable {
+                let progress: Double?
+            }
+            
+            do {
+                let result: [ProgressCheck] = try await supabase
+                    .from("enrollments")
+                    .select("progress")
+                    .eq("user_id", value: userId)
+                    .eq("course_id", value: course.id)
+                    .execute()
+                    .value
+                
+                if let progress = result.first?.progress, progress >= 1.0 {
+                     if !showCertificate && !showCompletionPopup {
+                        withAnimation {
+                            showCompletionPopup = true
+                        }
+                     }
+                }
+            } catch {
+                print("Error checking progress: \(error)")
+            }
+            isCheckingProgress = false
         }
     }
 }

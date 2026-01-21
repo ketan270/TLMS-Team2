@@ -243,6 +243,9 @@ struct Lesson: Identifiable, Codable {
     var fileName: String? // Original filename
     var textContent: String? // For text-based lessons
     
+    // Transcript for video lessons
+    var transcript: String?
+    
     // Helper to ensure name is not empty
     var isValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
