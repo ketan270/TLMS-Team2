@@ -125,9 +125,19 @@ struct SignupView: View {
                         // Resume upload for educators
                         if selectedRole == .educator {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Upload Resume (PDF/DOC)")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(AppTheme.primaryText)
+                                HStack(spacing: 8) {
+                                    Text("Upload Resume (PDF/DOC)")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(AppTheme.primaryText)
+                                    
+                                    Text("Required")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(AppTheme.errorRed)
+                                        .cornerRadius(6)
+                                }
                                 
                                 Button(action: { showDocumentPicker = true }) {
                                     HStack {
@@ -261,7 +271,14 @@ struct SignupView: View {
     }
     
     private var isFormValid: Bool {
-        !fullName.isEmpty && !email.isEmpty && !password.isEmpty && !confirmPassword.isEmpty
+        let basicFieldsValid = !fullName.isEmpty && !email.isEmpty && !password.isEmpty && !confirmPassword.isEmpty
+        
+        // Require resume for educators
+        if selectedRole == .educator {
+            return basicFieldsValid && selectedResumeData != nil
+        }
+        
+        return basicFieldsValid
     }
     
     private func handleSignup() {

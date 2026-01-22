@@ -445,13 +445,11 @@ struct LessonContentView: View {
     }
 }
 
-// Keep helper views like EmptyContentView if they are not in other files
-// Assuming EmptyContentView, PDFViewRepresentable, WebViewRepresentable are used here 
-// but checking the previous file content, they were defined in the same file.
-// I should preserve them.
+// MARK: - Empty Content View
 
 struct EmptyContentView: View {
     let message: String
+    
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")

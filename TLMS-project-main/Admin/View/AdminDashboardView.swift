@@ -252,16 +252,20 @@ struct PendingEducatorCard: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 14))
-                        .foregroundColor(.orange)
+                        .foregroundColor(.red)
                     
-                    Text("No resume uploaded")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.secondary)
+                    Text("Resume required for approval")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.red)
                 }
                 .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.orange.opacity(0.1))
+                        .fill(Color.red.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                        )
                 )
             }
             
@@ -306,6 +310,12 @@ struct PendingEducatorCard: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     .background(
+                        educator.resumeUrl == nil ?
+                        LinearGradient(
+                            colors: [Color.gray, Color.gray],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ) :
                         LinearGradient(
                             colors: [
                                 Color(red: 0.4, green: 0.5, blue: 1),
@@ -316,8 +326,23 @@ struct PendingEducatorCard: View {
                         )
                     )
                     .cornerRadius(12)
+                    .opacity(educator.resumeUrl == nil ? 0.5 : 1.0)
                 }
-                .disabled(isProcessing)
+                .disabled(isProcessing || educator.resumeUrl == nil)
+            }
+            
+            // Helper text when approve is disabled
+            if educator.resumeUrl == nil {
+                HStack {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    Text("Educator must upload resume before approval")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 4)
             }
         }
         .padding(20)
