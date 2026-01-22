@@ -12,6 +12,7 @@ struct EducatorCourseCard: View {
     var onDelete: (() -> Void)? = nil
     var onEdit: (() -> Void)? = nil
     var onUnpublish: (() -> Void)? = nil
+    var onPreview: (() -> Void)? = nil
     var showPreviewIcon: Bool = false
     
     @Environment(\.colorScheme) var colorScheme
@@ -183,6 +184,7 @@ struct EducatorCourseCard: View {
                                 .foregroundColor(AppTheme.primaryBlue)
                                 .cornerRadius(8)
                         }
+                        .buttonStyle(.plain)
                     }
                     
                     if let onUnpublish = onUnpublish {
@@ -195,6 +197,7 @@ struct EducatorCourseCard: View {
                                 .foregroundColor(.orange)
                                 .cornerRadius(8)
                         }
+                        .buttonStyle(.plain)
                     }
                     
                     if let onDelete = onDelete {
@@ -206,6 +209,7 @@ struct EducatorCourseCard: View {
                                 .foregroundColor(.red)
                                 .cornerRadius(8)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -221,5 +225,9 @@ struct EducatorCourseCard: View {
                 radius: 12,
                 x: 0,
                 y: 6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onPreview?()
+        }
     }
 }

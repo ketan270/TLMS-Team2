@@ -223,13 +223,19 @@ struct EducatorDashboardView: View {
                             )
                         } else if course.status == .published {
                             NavigationLink(destination: EducatorCoursePreviewView(courseId: course.id)) {
-                                EducatorCourseCard(
-                                    course: course,
-                                    onUnpublish: { viewModel.confirmUnpublish(course) },
-                                    showPreviewIcon: true
-                                )
+                                EmptyView()
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .opacity(0)
+                            .frame(width: 0, height: 0)
+                            
+                            EducatorCourseCard(
+                                course: course,
+                                onUnpublish: { viewModel.confirmUnpublish(course) },
+                                onPreview: {
+                                    // Navigation handled by NavigationLink above
+                                },
+                                showPreviewIcon: true
+                            )
                         } else {
                             EducatorCourseCard(course: course)
                         }
