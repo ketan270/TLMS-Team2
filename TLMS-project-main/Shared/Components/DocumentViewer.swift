@@ -200,6 +200,7 @@ struct PDFDocumentView: View {
     
     var body: some View {
         PDFKitView(url: url)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(edges: .bottom)
     }
 }
@@ -209,24 +210,56 @@ struct PDFKitView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> PDFView {
         let pdfView = PDFView()
+        
+        // Configure PDF display for full screen viewing
+        pdfView.backgroundColor = UIColor.systemBackground
         pdfView.autoScales = true
         pdfView.displayMode = .singlePageContinuous
         pdfView.displayDirection = .vertical
-        pdfView.backgroundColor = UIColor.systemGroupedBackground
         
-        // Enable page navigation
-        pdfView.usePageViewController(true, withViewOptions: nil)
+        // Important: Set this to ensure PDF fills the view
+        pdfView.translatesAutoresizingMaskIntoConstraints = false
         
-        // Load PDF
-        if let document = PDFDocument(url: url) {
-            pdfView.document = document
-        }
+        // Load PDF from URL
+        loadPDF(into: pdfView)
         
         return pdfView
     }
     
     func updateUIView(_ uiView: PDFView, context: Context) {
-        // Update if needed
+        // Only reload if URL changed
+        if uiView.document == nil || uiView.document?.documentURL != url {
+            loadPDF(into: uiView)
+        }
+    }
+    
+    private func loadPDF(into pdfView: PDFView) {
+        // Load asynchronously to avoid blocking UI
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let document = PDFDocument(url: self.url) {
+                DispatchQueue.main.async {
+                    pdfView.document = document
+                    
+                    // Force proper scaling after document loads
+                    if let page = document.page(at: 0) {
+                        let pageRect = page.bounds(for: .mediaBox)
+                        let viewSize = pdfView.bounds.size
+                        
+                        // Calculate scale to fit width
+                        if pageRect.width > 0 && viewSize.width > 0 {
+                            let scale = viewSize.width / pageRect.width
+                            pdfView.scaleFactor = scale
+                            pdfView.minScaleFactor = scale * 0.5
+                            pdfView.maxScaleFactor = scale * 4.0
+                        }
+                    }
+                    
+                    print("✅ PDF loaded successfully from: \(self.url)")
+                }
+            } else {
+                print("❌ Failed to load PDF from URL: \(self.url)")
+            }
+        }
     }
 }
 
