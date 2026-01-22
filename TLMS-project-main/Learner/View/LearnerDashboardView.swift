@@ -14,53 +14,78 @@ struct LearnerDashboardView: View {
     @StateObject private var viewModel = LearnerDashboardViewModel()
     @State private var selectedTab = 0
     @State private var dashboardRefreshTrigger = UUID()
+    @StateObject private var chatViewModel = ChatViewModel()
     
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Browse Courses Tab
-            courseListView(courses: viewModel.publishedCourses.filter { course in
-                !viewModel.isEnrolled(course)
-            }, title: "Browse Courses", showSearch: false)
-            .id(dashboardRefreshTrigger)
-            .tabItem {
-                Label("Browse", systemImage: "book.fill")
-            }
-            .tag(0)
-            
-            // My Courses Tab
-            courseListView(
-                courses: viewModel.enrolledCourses,
-                title: "My Courses",
-                showSearch: false
-            )
-            .id(dashboardRefreshTrigger)
-            .tabItem {
-                Label("My Courses", systemImage: "person.fill")
-            }
-            .tag(1)
-            
-            // Search Tab
-            searchView()
+        ZStack(alignment: .bottomTrailing) { // Use ZStack for overlay
+            TabView(selection: $selectedTab) {
+                // Browse Courses Tab
+                courseListView(courses: viewModel.publishedCourses.filter { course in
+                    !viewModel.isEnrolled(course)
+                }, title: "Browse Courses", showSearch: false)
+                .id(dashboardRefreshTrigger)
                 .tabItem {
-                    Label("Search", systemImage: "magnifyingglass")
+                    Label("Browse", systemImage: "book.fill")
                 }
-                .tag(2)
-            
-            // Profile Tab
-            ProfileView(user: user)
+                .tag(0)
+                
+                // My Courses Tab
+                courseListView(
+                    courses: viewModel.enrolledCourses,
+                    title: "My Courses",
+                    showSearch: false
+                )
+                .id(dashboardRefreshTrigger)
                 .tabItem {
-                    Label("Profile", systemImage: "person.fill")
+                    Label("My Courses", systemImage: "person.fill")
                 }
-                .tag(3)
-        }
-        .tint(AppTheme.primaryBlue)
-        .toolbarBackground(.visible, for: .tabBar)
-        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
-        .toolbarColorScheme(.dark, for: .tabBar)
-        .task {
-            await viewModel.loadData(userId: user.id)
+                .tag(1)
+                
+                // Search Tab
+                searchView()
+                    .tabItem {
+                        Label("Search", systemImage: "magnifyingglass")
+                    }
+                    .tag(2)
+                
+                // Profile Tab
+                ProfileView(user: user)
+                    .tabItem {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                    .tag(3)
+            }
+            .tint(AppTheme.primaryBlue)
+            .toolbarBackground(.visible, for: .tabBar)
+            .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+            .toolbarColorScheme(.dark, for: .tabBar)
+            .task {
+                await viewModel.loadData(userId: user.id)
+            }
+            
+            // 🔥 Gemini Chatbot Overlay
+            if chatViewModel.isChatOpen {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation { chatViewModel.isChatOpen = false }
+                    }
+                
+                ChatView(viewModel: chatViewModel)
+                    .frame(height: 500)
+                    .padding()
+                    .padding(.bottom, 80) // Above TabBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(2)
+            }
+            
+            // Floating Button
+            FloatingChatButton(viewModel: chatViewModel)
+                .padding(.bottom, 90) // Above TabBar
+                .padding(.trailing, 20)
+                .zIndex(3)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .courseProgressUpdated)
