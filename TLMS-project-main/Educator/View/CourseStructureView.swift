@@ -354,102 +354,98 @@ struct LessonInlineRow: View {
         @State private var navigateToContentEditor = false
         
         var body: some View {
-            ZStack {
-                HStack(spacing: 16) {
-                    // Large Content Type Icon (Left side - like the book icon)
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.blue.opacity(0.1))
-                            .frame(width: 56, height: 56)
-                        
-                        Image(systemName: lesson.type.icon)
-                            .font(.system(size: 28))
-                            .foregroundColor(.blue)
-                    }
+            HStack(spacing: 12) {
+                // Content Type Icon
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 36, height: 36)
                     
-                    // Lesson Info (Center)
-                    VStack(alignment: .leading, spacing: 6) {
-                        // Lesson Title
-                        Text(lesson.title)
-                            .font(.body.weight(.semibold))
-                            .foregroundColor(.primary)
-                            .lineLimit(2)
-                            .truncationMode(.tail)
+                    Image(systemName: lesson.type.icon)
+                        .font(.system(size: 16))
+                        .foregroundColor(.blue)
+                }
+                
+                // Lesson Name and Type
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(lesson.title)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                    
+                    HStack(spacing: 4) {
+                        Text(lesson.type.shortName)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         
-                        // Action Buttons Row (below title, like "Draft" badge)
-                        HStack(spacing: 8) {
-                            // Change Type Menu
-                            Menu {
-                                ForEach(ContentType.allCases) { type in
-                                    Button(action: {
-                                        updateLessonContentType(to: type)
-                                        if type == .quiz {
-                                            navigateToQuizEditor = true
-                                        } else {
-                                            navigateToContentEditor = true
-                                        }
-                                    }) {
-                                        Label(type.shortName, systemImage: type.icon)
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "ellipsis.circle")
-                                        .font(.caption)
-                                    Text("Type")
-                                        .font(.caption.bold())
-                                }
-                                .foregroundColor(.purple)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(Color.purple.opacity(0.1))
-                                .cornerRadius(6)
-                            }
-                            
-                            // Edit Button
+                        // Content status indicator next to type
+                        if lesson.hasContent {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.system(size: 10))
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                // Action Buttons
+                HStack(spacing: 8) {
+                    // Change Type Menu
+                    Menu {
+                        ForEach(ContentType.allCases) { type in
                             Button(action: {
-                                if lesson.type == .quiz {
+                                updateLessonContentType(to: type)
+                                if type == .quiz {
                                     navigateToQuizEditor = true
                                 } else {
                                     navigateToContentEditor = true
                                 }
                             }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "pencil.circle")
-                                        .font(.caption)
-                                    Text("Edit")
-                                        .font(.caption.bold())
-                                }
-                                .foregroundColor(.blue)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(6)
-                            }
-                            
-                            // Content status indicator
-                            if lesson.hasContent {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
+                                Label(type.shortName, systemImage: type.icon)
                             }
                         }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.caption)
+                            Text("Type")
+                                .font(.caption.bold())
+                        }
+                        .foregroundColor(.purple)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(Color.purple.opacity(0.1))
+                        .cornerRadius(6)
                     }
                     
-                    Spacer()
-                    
-                    // Delete Button (Right side)
-                    Button(action: { showDeleteAlert = true }) {
-                        Image(systemName: "trash.circle.fill")
-                            .foregroundColor(.red)
-                            .font(.title3)
+                    // Edit Button
+                    Button(action: {
+                        if lesson.type == .quiz {
+                            navigateToQuizEditor = true
+                        } else {
+                            navigateToContentEditor = true
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "pencil.circle")
+                                .font(.caption)
+                            Text("Edit")
+                                .font(.caption.bold())
+                        }
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(6)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color(uiColor: .tertiarySystemGroupedBackground))
-                .cornerRadius(8)
-                .padding(.horizontal)
+                
+                // Delete Button
+                Button(action: { showDeleteAlert = true }) {
+                    Image(systemName: "trash.circle.fill")
+                        .foregroundColor(.red)
+                        .font(.body)
+                }
                 
                 // Hidden NavigationLinks for programmatic navigation
                 NavigationLink(
@@ -477,6 +473,11 @@ struct LessonInlineRow: View {
                 }
                 .hidden()
             }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(uiColor: .tertiarySystemGroupedBackground))
+            .cornerRadius(8)
+            .padding(.horizontal)
             .alert("Delete Lesson", isPresented: $showDeleteAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
