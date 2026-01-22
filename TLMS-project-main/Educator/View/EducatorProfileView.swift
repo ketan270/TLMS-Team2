@@ -252,46 +252,117 @@ struct EducatorProfileView: View {
                 .foregroundColor(AppTheme.primaryText)
             
             VStack(spacing: 12) {
-                // Resume Status
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Resume / CV")
-                            .font(.headline)
-                            .foregroundColor(AppTheme.primaryText)
+                // Resume Status Card
+                VStack(spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Resume / CV")
+                                .font(.headline)
+                                .foregroundColor(AppTheme.primaryText)
+                            
+                            // Smart status based on approval status
+                            if viewModel.user?.approvalStatus == .approved {
+                                // Approved educators always have a resume
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundColor(AppTheme.successGreen)
+                                    Text(viewModel.user?.resumeUrl != nil ? "Resume on file" : "Resume verified")
+                                        .font(.caption)
+                                        .foregroundColor(AppTheme.successGreen)
+                                }
+                            } else if let resumeUrl = viewModel.user?.resumeUrl {
+                                // Pending/Rejected with resume
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundColor(AppTheme.successGreen)
+                                    Text("Resume uploaded")
+                                        .font(.caption)
+                                        .foregroundColor(AppTheme.successGreen)
+                                }
+                            } else {
+                                // Pending/Rejected without resume
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundColor(AppTheme.warningOrange)
+                                    Text("No resume uploaded")
+                                        .font(.caption)
+                                        .foregroundColor(AppTheme.warningOrange)
+                                }
+                            }
+                        }
                         
-                        if let resumeUrl = viewModel.user?.resumeUrl {
-                             Text("Resume uploaded")
-                                .font(.caption)
-                                .foregroundColor(AppTheme.successGreen)
-                        } else {
-                            Text("No resume uploaded")
+                        Spacer()
+                        
+                        // Action buttons
+                        HStack(spacing: 8) {
+                            // View Resume button (only if resume URL exists)
+                            if let resumeUrl = viewModel.user?.resumeUrl, let url = URL(string: resumeUrl) {
+                                Link(destination: url) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "eye.fill")
+                                            .font(.caption)
+                                        Text("View")
+                                            .font(.subheadline.weight(.medium))
+                                    }
+                                    .foregroundColor(AppTheme.primaryBlue)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(AppTheme.primaryBlue.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
+                            }
+                            
+                            // Upload/Update button
+                            Button(action: {
+                                isImportingResume = true
+                            }) {
+                                if viewModel.isUploadingResume {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: viewModel.user?.resumeUrl == nil && viewModel.user?.approvalStatus != .approved ? "arrow.up.doc.fill" : "arrow.triangle.2.circlepath")
+                                            .font(.caption)
+                                        Text(viewModel.user?.resumeUrl == nil && viewModel.user?.approvalStatus != .approved ? "Upload" : "Update")
+                                            .font(.subheadline.weight(.medium))
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(AppTheme.primaryBlue)
+                                    .cornerRadius(8)
+                                }
+                            }
+                            .disabled(viewModel.isUploadingResume)
+                        }
+                    }
+                    
+                    // Warning banner ONLY for pending educators without resume
+                    if viewModel.user?.resumeUrl == nil && viewModel.user?.approvalStatus == .pending {
+                        HStack(spacing: 10) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppTheme.warningOrange)
+                            
+                            Text("Upload your resume to enable admin approval")
                                 .font(.caption)
                                 .foregroundColor(AppTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                            
+                            Spacer()
                         }
+                        .padding(12)
+                        .background(AppTheme.warningOrange.opacity(0.1))
+                        .cornerRadius(8)
                     }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        isImportingResume = true
-                    }) {
-                        if viewModel.isUploadingResume {
-                            ProgressView()
-                        } else {
-                            Text(viewModel.user?.resumeUrl == nil ? "Upload" : "Update")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(AppTheme.primaryBlue)
-                                .cornerRadius(8)
-                        }
-                    }
-                    .disabled(viewModel.isUploadingResume)
                 }
                 .padding()
                 .background(AppTheme.secondaryGroupedBackground)
                 .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
             }
         }
     }

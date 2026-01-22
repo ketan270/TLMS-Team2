@@ -11,13 +11,59 @@ struct EducatorDashboardView: View {
     let user: User
     @EnvironmentObject var authService: AuthService
     @StateObject private var viewModel = EducatorDashboardViewModel()
-    @State private var showProfile = false
     @State private var showCreateCourse = false
     @State private var courseToEdit: DashboardCourse? = nil
+    @State private var selectedTab = 0
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        NavigationView {
+        TabView(selection: $selectedTab) {
+            // Dashboard Tab
+            dashboardView
+                .tabItem {
+                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
+                }
+                .tag(0)
+            
+            // Profile Tab
+            EducatorProfileView(user: user)
+                .tabItem {
+                    Label("Profile", systemImage: "person.fill")
+                }
+                .tag(1)
+        }
+        .tint(AppTheme.primaryBlue)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
+        .id(user.id)
+        .task {
+            await viewModel.loadData(educatorID: user.id)
+        }
+        .fullScreenCover(isPresented: $showCreateCourse, onDismiss: {
+            // Refresh dashboard when course creation is dismissed
+            courseToEdit = nil
+            Task {
+                await viewModel.loadData(educatorID: user.id)
+            }
+        }) {
+            NavigationView {
+                if let courseToEdit = courseToEdit {
+                    // Editing existing draft course
+                    CreateCourseView(viewModel: CourseCreationViewModel(educatorID: user.id, existingCourse: courseToEdit))
+                } else {
+                    // Creating new course
+                    CreateCourseView(viewModel: CourseCreationViewModel(educatorID: user.id))
+                }
+            }
+        }
+    }
+    
+    // MARK: - Dashboard View
+    
+    @ViewBuilder
+    private var dashboardView: some View {
+        NavigationStack {
             ZStack {
                 // Professional background
                 AppTheme.groupedBackground
@@ -58,60 +104,18 @@ struct EducatorDashboardView: View {
             .navigationTitle("Educator Dashboard")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: { showProfile = true }) {
-                            Label("Profile", systemImage: "person.circle")
+                    Button(action: {
+                        Task {
+                            await viewModel.loadData(educatorID: user.id)
                         }
-                        
-                        Divider()
-                        
-                        Button(action: {
-                            Task {
-                                await viewModel.loadData(educatorID: user.id)
-                            }
-                        }) {
-                            Label("Refresh", systemImage: "arrow.clockwise")
-                        }
-                        
-                        Divider()
-                        
-                        Button(role: .destructive, action: handleLogout) {
-                            Label("Sign Out", systemImage: "arrow.right.square")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle.fill")
-                            .font(.system(size: 24))
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 20))
                             .foregroundColor(AppTheme.primaryBlue)
                     }
                 }
             }
         }
-        .navigationViewStyle(.stack)
-        .id(user.id)
-        .task {
-            await viewModel.loadData(educatorID: user.id)
-        }
-        .fullScreenCover(isPresented: $showCreateCourse, onDismiss: {
-            // Refresh dashboard when course creation is dismissed
-            courseToEdit = nil
-            Task {
-                await viewModel.loadData(educatorID: user.id)
-            }
-        }) {
-            NavigationView {
-                if let courseToEdit = courseToEdit {
-                    // Editing existing draft course
-                    CreateCourseView(viewModel: CourseCreationViewModel(educatorID: user.id, existingCourse: courseToEdit))
-                } else {
-                    // Creating new course
-                    CreateCourseView(viewModel: CourseCreationViewModel(educatorID: user.id))
-                }
-            }
-        }
-        .sheet(isPresented: $showProfile) {
-            EducatorProfileView(user: user)
-        }
-
     }
     
     // MARK: - Header Section
@@ -189,12 +193,15 @@ struct EducatorDashboardView: View {
                 
                 LazyVStack(spacing: 16) {
                     ForEach(viewModel.draftCourses) { course in
-                        CourseGlassCard(course: course, onDelete: {
-                            viewModel.confirmDelete(course)
-                        }, onEdit: {
-                            courseToEdit = course
-                            showCreateCourse = true
-                        })
+                        NavigationLink(destination: EducatorCoursePreviewView(courseId: course.id)) {
+                            CourseGlassCard(course: course, onDelete: {
+                                viewModel.confirmDelete(course)
+                            }, onEdit: {
+                                courseToEdit = course
+                                showCreateCourse = true
+                            }, showPreviewIcon: true)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
             }
@@ -296,15 +303,6 @@ struct EducatorDashboardView: View {
         .padding(.top, 8)
     }
     
-
-    
-
-    
-    private func handleLogout() {
-        Task {
-            await authService.signOut()
-        }
-    }
 }
 
 // MARK: - Stat Card
