@@ -8,8 +8,11 @@ struct EducatorCoursePreviewView: View {
     let courseId: UUID
     var draftCourse: Course? = nil // Optional draft course for immediate preview
     @StateObject private var courseService = CourseService()
+    @StateObject private var reviewService = ReviewService()
     @State private var course: Course?
+    @State private var reviews: [CourseReview] = []
     @State private var isLoading = true
+    @State private var isLoadingReviews = false
     @State private var expandedModules: Set<UUID> = []
     @State private var selectedLesson: Lesson?
     @State private var showLessonContent = false
@@ -69,6 +72,11 @@ struct EducatorCoursePreviewView: View {
                             }
                             .padding(.horizontal)
                         }
+                        .padding(.bottom, 20)
+                        
+                        // Reviews Section
+                        reviewsSection
+                        
                         .padding(.bottom, 60)
                     }
                 }
@@ -285,6 +293,69 @@ struct EducatorCoursePreviewView: View {
         }
     }
     
+    // MARK: - Reviews Section
+    
+    private var reviewsSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("Learner Reviews")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(AppTheme.primaryText)
+                
+                Spacer()
+                
+                if let course = course, let rating = course.ratingAvg, rating > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.orange)
+                            .font(.subheadline)
+                        Text(String(format: "%.1f", rating))
+                            .font(.subheadline.bold())
+                        Text("(\(reviews.count))")
+                            .font(.caption)
+                            .foregroundColor(AppTheme.secondaryText)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            
+            if isLoadingReviews {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .padding()
+                    Spacer()
+                }
+            } else if reviews.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "star.bubble")
+                        .font(.system(size: 48))
+                        .foregroundColor(AppTheme.secondaryText.opacity(0.5))
+                    Text("No reviews yet")
+                        .font(.subheadline)
+                        .foregroundColor(AppTheme.secondaryText)
+                    Text("Learners will be able to rate and review this course after completing it")
+                        .font(.caption)
+                        .foregroundColor(AppTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+                .background(AppTheme.secondaryGroupedBackground)
+                .cornerRadius(16)
+                .padding(.horizontal)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(reviews) { review in
+                        ReviewRow(review: review)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+    
     private func loadCourse() async {
         isLoading = true
         // Use draft course if provided, otherwise fetch by ID
@@ -294,6 +365,11 @@ struct EducatorCoursePreviewView: View {
             course = await courseService.fetchCourse(by: courseId)
         }
         isLoading = false
+        
+        // Load reviews
+        isLoadingReviews = true
+        reviews = await reviewService.fetchReviews(for: courseId)
+        isLoadingReviews = false
     }
 }
 

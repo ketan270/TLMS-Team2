@@ -80,7 +80,8 @@ struct CourseStructureView: View {
                                     title: "No Modules Yet",
                                     message: "Start building your curriculum."
                                 )
-                                .padding(.top, 40)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .padding(.top, 100)
                             } else {
                                 ForEach(viewModel.newCourse.modules) { module in
                                     ExpandableModuleCard(

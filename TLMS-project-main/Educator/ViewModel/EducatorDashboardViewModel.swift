@@ -66,9 +66,9 @@ class EducatorDashboardViewModel: ObservableObject {
     func unpublishCourse(_ course: Course) async -> Bool {
         let success = await courseService.updateCourseStatus(courseID: course.id, status: .draft)
         if success {
-            // Update local array
-            if let index = recentCourses.firstIndex(where: { $0.id == course.id }) {
-                recentCourses[index].status = .draft
+            // Reload all data to ensure UI updates correctly
+            if let educatorID = recentCourses.first?.educatorID {
+                await loadData(educatorID: educatorID)
             }
         }
         return success
