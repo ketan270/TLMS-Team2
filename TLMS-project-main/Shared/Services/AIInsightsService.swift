@@ -11,7 +11,7 @@ import Combine
 @MainActor
 class AIInsightsService: ObservableObject {
     private let apiKey = "AIzaSyBNfivn7AKTogZfb3E2LxKzA3cA-TXqD7c"
-    private let baseURL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent"
+    private let baseURL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-latest:generateContent"
     
     @Published var isLoading = false
     @Published var errorMessage: String?
