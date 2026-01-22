@@ -215,9 +215,12 @@ struct EducatorDashboardView: View {
                                 viewModel.confirmDelete(course)
                             })
                         } else if course.status == .published {
-                            CourseGlassCard(course: course, onUnpublish: {
-                                viewModel.confirmUnpublish(course)
-                            })
+                            NavigationLink(destination: EducatorCoursePreviewView(courseId: course.id)) {
+                                CourseGlassCard(course: course, onUnpublish: {
+                                    viewModel.confirmUnpublish(course)
+                                }, showPreviewIcon: true)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         } else {
                             CourseGlassCard(course: course)
                         }
@@ -344,6 +347,7 @@ struct CourseGlassCard: View {
     var onDelete: (() -> Void)? = nil
     var onEdit: (() -> Void)? = nil
     var onUnpublish: (() -> Void)? = nil
+    var showPreviewIcon: Bool = false
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
@@ -397,6 +401,14 @@ struct CourseGlassCard: View {
             
             // Action buttons
             HStack(spacing: 12) {
+                // Preview icon for published courses
+                if showPreviewIcon {
+                    Image(systemName: "eye.fill")
+                        .font(.title3)
+                        .foregroundColor(AppTheme.primaryBlue)
+                        .frame(width: 32, height: 32)
+                }
+                
                 // Edit button (arrow icon) for drafts
                 if let onEdit = onEdit {
                     Button(action: onEdit) {
@@ -431,7 +443,7 @@ struct CourseGlassCard: View {
                 }
                 
                 // Chevron for courses without actions
-                if onEdit == nil && onDelete == nil && onUnpublish == nil {
+                if onEdit == nil && onDelete == nil && onUnpublish == nil && !showPreviewIcon {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(AppTheme.secondaryText)
