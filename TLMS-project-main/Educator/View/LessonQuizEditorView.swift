@@ -88,7 +88,10 @@ struct LessonQuizEditorView: View {
                     
                     // Save Button
                     Button(action: {
-                        dismiss()
+                        // Pop back to Course Structure by removing from navigation path
+                        if !viewModel.navigationPath.isEmpty {
+                            viewModel.navigationPath.removeLast()
+                        }
                     }) {
                         HStack(spacing: 8) {
                             Text("Done")

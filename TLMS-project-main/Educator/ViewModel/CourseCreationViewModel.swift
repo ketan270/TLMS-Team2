@@ -7,10 +7,21 @@
 
 import SwiftUI
 import Combine
+import PhotosUI
 
 @MainActor
 class CourseCreationViewModel: ObservableObject {
     @Published var newCourse: Course
+    
+    // Custom Image Selection
+    @Published var selectedItem: PhotosPickerItem? = nil {
+        didSet {
+            if let selectedItem {
+                handleImageSelection(selectedItem)
+            }
+        }
+    }
+    @Published var selectedImageData: Data? = nil
     
     // Navigation state
     @Published var navigationPath = NavigationPath()
@@ -20,18 +31,12 @@ class CourseCreationViewModel: ObservableObject {
     
     private let courseService = CourseService()
     
-    init(educatorID: UUID, existingCourse: DashboardCourse? = nil) {
+    init(educatorID: UUID, existingCourse: Course? = nil) {
         if let existingCourse = existingCourse {
-            // Initialize with placeholder, will load full course data
-            self.newCourse = Course(
-                id: existingCourse.id,
-                title: existingCourse.title,
-                description: "",
-                category: "",
-                educatorID: educatorID
-            )
+            // Initialize with the full course data we already have
+            self.newCourse = existingCourse
             
-            // Load full course data asynchronously
+            // Still trigger a refresh to get any updates from the server
             Task {
                 await loadCourse(courseID: existingCourse.id)
             }
@@ -224,6 +229,20 @@ class CourseCreationViewModel: ObservableObject {
                 print("Error sending to review: \(error)")
                 // You might need a separate published property for error alert in VM
                 // For now, let's reuse saveSuccessMessage for generic feedback or add a new one
+            }
+        }
+    }
+    
+    // MARK: - Photo Selection
+    
+    private func handleImageSelection(_ item: PhotosPickerItem) {
+        Task {
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                selectedImageData = data
+                // In a production app, we would upload this data to Supabase Storage
+                // and then update newCourse.courseCoverUrl with the resulting public URL.
+                // For this demonstration, we'll keep the data in memory to show in the preview.
+                print("✅ Custom image data loaded (\(data.count) bytes)")
             }
         }
     }

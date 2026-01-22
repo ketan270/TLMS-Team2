@@ -136,9 +136,11 @@ struct CategoryCoursesView: View {
                 // Search Bar
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppTheme.primaryBlue)
                     
                     TextField("Search in \(category)", text: $searchText)
+                        .font(.system(size: 16))
                         .textFieldStyle(.plain)
                         .autocapitalization(.none)
                     
@@ -149,9 +151,11 @@ struct CategoryCoursesView: View {
                         }
                     }
                 }
-                .padding()
-                .background(AppTheme.secondaryGroupedBackground)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(uiColor: .systemBackground))
                 .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                 .padding()
 
                 ScrollView {
@@ -165,18 +169,29 @@ struct CategoryCoursesView: View {
                             .padding(.top, 60)
                         } else {
                             ForEach(filteredCourses) { course in
-                                NavigationLink(
-                                    destination:
-                                        LearnerCourseDetailView(
-                                            course: course,
-                                            isEnrolled: enrolledCourseIds.contains(course.id),
-                                            userId: userId,
-                                            onEnroll: {}
-                                        )
+                                NavigationLink(destination:
+                                                LearnerCourseDetailView(
+                                                    course: course,
+                                                    isEnrolled: enrolledCourseIds.contains(course.id),
+                                                    userId: userId,
+                                                    onEnroll: {
+                                                        _ = await courseService.enrollInCourse(courseID: course.id, userID: userId)
+                                                        if let updatedProgress = try? await courseService.fetchEnrollmentProgress(userId: userId) {
+                                                            enrolledCourseIds = Set(updatedProgress.map { $0.courseId })
+                                                        }
+                                                    }
+                                                )
                                 ) {
-                                    CategoryCourseCard(
+                                    PublishedCourseCard(
                                         course: course,
-                                        isEnrolled: enrolledCourseIds.contains(course.id)
+                                        isEnrolled: enrolledCourseIds.contains(course.id),
+                                        progress: 0.0,
+                                        onEnroll: {
+                                            _ = await courseService.enrollInCourse(courseID: course.id, userID: userId)
+                                            if let updatedProgress = try? await courseService.fetchEnrollmentProgress(userId: userId) {
+                                                enrolledCourseIds = Set(updatedProgress.map { $0.courseId })
+                                            }
+                                        }
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -189,5 +204,10 @@ struct CategoryCoursesView: View {
         }
         .navigationTitle(category)
         .navigationBarTitleDisplayMode(.large)
+        .task {
+            if let updatedProgress = try? await courseService.fetchEnrollmentProgress(userId: userId) {
+                enrolledCourseIds = Set(updatedProgress.map { $0.courseId })
+            }
+        }
     }
 }

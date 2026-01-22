@@ -14,6 +14,7 @@ struct LearnerDashboardView: View {
     @StateObject private var viewModel = LearnerDashboardViewModel()
     @State private var selectedTab = 0
     @State private var dashboardRefreshTrigger = UUID()
+    @State private var isRefreshing = false
     @StateObject private var chatViewModel = ChatViewModel()
     
     @Environment(\.colorScheme) var colorScheme
@@ -58,9 +59,6 @@ struct LearnerDashboardView: View {
                     .tag(3)
             }
             .tint(AppTheme.primaryBlue)
-            .toolbarBackground(.visible, for: .tabBar)
-            .toolbarBackground(.ultraThinMaterial, for: .tabBar)
-            .toolbarColorScheme(.dark, for: .tabBar)
             .task {
                 await viewModel.loadData(userId: user.id)
             }
@@ -94,7 +92,18 @@ struct LearnerDashboardView: View {
             Task {
                 await viewModel.loadData(userId: user.id)
             }
-        }        .alert("Error", isPresented: $viewModel.showingError) {
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .courseEnrolled)
+        ) { _ in
+            dashboardRefreshTrigger = UUID()
+            Task {
+                await viewModel.loadData(userId: user.id)
+            }
+            // Switch to "My Courses" tab to show newly enrolled course
+            selectedTab = 1
+        }
+        .alert("Error", isPresented: $viewModel.showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.errorMessage ?? "Failed to enroll in course")
@@ -154,7 +163,7 @@ struct LearnerDashboardView: View {
                     VStack(spacing: 20) {
                         // Welcome header
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(authService.entryPoint == .signup ? "Welcome," : "Welcome back,")
+                            Text(isFirstTimeUser ? "Welcome," : "Welcome back,")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.secondary)
                             
@@ -183,6 +192,12 @@ struct LearnerDashboardView: View {
                             )
                         }
                         .padding(.horizontal)
+                        
+                        // 1. Browse Courses -> Sort by goes here (below stats)
+                        if title != "My Courses" {
+                            sortFilterView(title: title)
+                        }
+                        
                         // ✅ Upcoming Deadlines
                         if title == "My Courses" {
                             VStack(alignment: .leading, spacing: 12) {
@@ -220,77 +235,9 @@ struct LearnerDashboardView: View {
                                 }
                             }
                             .padding(.top, 6)
-                        }
-                        
-                        
-                        // Sort/Filter Options (scrollable to prevent truncation)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                Text(title == "My Courses" ? "Filter by" : "Sort by")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundColor(.secondary)
-                                
-                                if title == "My Courses" {
-                                    ForEach(CourseEnrollmentFilter.allCases) { filter in
-                                        Button(action: {
-                                            withAnimation {
-                                                viewModel.selectedEnrollmentFilter = filter
-                                            }
-                                        }) {
-                                            Text(filter.rawValue)
-                                                .font(.system(size: 14, weight: .medium))
-                                                .padding(.horizontal, 14)
-                                                .padding(.vertical, 8)
-                                                .background(
-                                                    viewModel.selectedEnrollmentFilter == filter ?
-                                                    AppTheme.primaryBlue : Color.clear
-                                                )
-                                                .foregroundColor(
-                                                    viewModel.selectedEnrollmentFilter == filter ?
-                                                    .white : AppTheme.primaryBlue
-                                                )
-                                                .cornerRadius(16)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 16)
-                                                        .stroke(AppTheme.primaryBlue, lineWidth: viewModel.selectedEnrollmentFilter == filter ? 0 : 1.5)
-                                                )
-                                        }
-                                    }
-                                } else {
-                                    ForEach(CourseSortOption.allCases) { option in
-                                        Button(action: {
-                                            withAnimation {
-                                                viewModel.selectedSortOption = option
-                                            }
-                                        }) {
-                                            HStack(spacing: 4) {
-                                                Image(systemName: option.icon)
-                                                    .font(.system(size: 12))
-                                                Text(option.displayName)
-                                                    .font(.system(size: 14, weight: .medium))
-                                            }
-                                            .padding(.horizontal, 14)
-                                            .padding(.vertical, 8)
-                                            .background(
-                                                viewModel.selectedSortOption == option ?
-                                                AppTheme.primaryBlue :
-                                                    Color.clear
-                                            )
-                                            .foregroundColor(
-                                                viewModel.selectedSortOption == option ?
-                                                    .white :
-                                                    AppTheme.primaryBlue
-                                            )
-                                            .cornerRadius(16)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 16)
-                                                    .stroke(AppTheme.primaryBlue, lineWidth: viewModel.selectedSortOption == option ? 0 : 1.5)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
+                            
+                            // 2. My Courses -> Filter by goes here (below deadlines)
+                            sortFilterView(title: title)
                         }
                         
                         // Course List
@@ -360,11 +307,120 @@ struct LearnerDashboardView: View {
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        Task {
+                            isRefreshing = true
+                            dashboardRefreshTrigger = UUID()
+                            await viewModel.loadData(userId: user.id)
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            isRefreshing = false
+                        }
+                    }) {
+                        if isRefreshing {
+                            ProgressView()
+                                .tint(AppTheme.primaryBlue)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(AppTheme.primaryBlue)
+                        }
+                    }
+                    .disabled(isRefreshing)
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: 0)
             }
         }
         .id(user.id)
+    }
+    
+    // Helper to determine if user is first-time
+    private var isFirstTimeUser: Bool {
+        // Check if user was created recently (within last 5 minutes)
+        let fiveMinutesAgo = Date().addingTimeInterval(-300)
+        return user.createdAt > fiveMinutesAgo
+    }
+    
+    @ViewBuilder
+    private func sortFilterView(title: String) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                Text(title == "My Courses" ? "Filter by" : "Sort by")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(.secondary)
+                
+                if title == "My Courses" {
+                    ForEach(CourseEnrollmentFilter.allCases) { filter in
+                        Button(action: {
+                            withAnimation {
+                                viewModel.selectedEnrollmentFilter = filter
+                            }
+                        }) {
+                            Text(filter.rawValue)
+                                .font(.system(size: 14, weight: .medium))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    viewModel.selectedEnrollmentFilter == filter ?
+                                    AppTheme.primaryBlue : Color.clear
+                                )
+                                .foregroundColor(
+                                    viewModel.selectedEnrollmentFilter == filter ?
+                                        .white : AppTheme.primaryBlue
+                                )
+                                .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(AppTheme.primaryBlue, lineWidth: viewModel.selectedEnrollmentFilter == filter ? 0 : 1.5)
+                                )
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    ForEach(CourseSortOption.allCases) { option in
+                        Button(action: {
+                            withAnimation {
+                                viewModel.selectedSortOption = option
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: option.icon)
+                                    .font(.system(size: 12))
+                                Text(option.displayName)
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                viewModel.selectedSortOption == option ?
+                                AppTheme.primaryBlue :
+                                    Color.clear
+                            )
+                            .foregroundColor(
+                                viewModel.selectedSortOption == option ?
+                                    .white :
+                                    AppTheme.primaryBlue
+                            )
+                            .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(AppTheme.primaryBlue, lineWidth: viewModel.selectedSortOption == option ? 0 : 1.5)
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .frame(height: 44)
+        .zIndex(10) // Ensure it's above any other content
+        .allowsHitTesting(true)
     }
     
     private func handleLogout() {
@@ -473,201 +529,12 @@ struct LearnerDashboardView: View {
     
     // MARK: - Published Course Card
     
-    struct PublishedCourseCard: View {
-        let course: Course
-        let isEnrolled: Bool
-        let progress: Double                // 🔥 SINGLE SOURCE OF TRUTH
-        var onEnroll: () async -> Void
-        
-        @Environment(\.colorScheme) var colorScheme
-        @State private var isEnrolling = false
-        @State private var showSuccess = false
-        @State private var showPaymentRequired = false
-        
-        // MARK: - Category Styling
-        
-        private var categoryColor: Color {
-            switch course.category.lowercased() {
-            case "design": return AppTheme.accentPurple
-            case "development", "programming", "code": return AppTheme.primaryBlue
-            case "marketing": return AppTheme.warningOrange
-            case "business": return AppTheme.accentTeal
-            case "data", "analytics": return AppTheme.successGreen
-            case "photography": return .pink
-            case "music": return .indigo
-            default: return AppTheme.secondaryText
-            }
-        }
-        
-        private var categoryIcon: String {
-            switch course.category.lowercased() {
-            case "design": return "pencil.and.outline"
-            case "development", "programming", "code": return "chevron.left.forwardslash.chevron.right"
-            case "marketing": return "megaphone.fill"
-            case "business": return "briefcase.fill"
-            case "data", "analytics": return "chart.bar.fill"
-            case "photography": return "camera.fill"
-            case "music": return "music.note"
-            default: return "book.fill"
-            }
-        }
-        
-        // MARK: - View
-        
-        var body: some View {
-            VStack(alignment: .leading, spacing: 0) {
-                
-                // Header
-                HStack(alignment: .top, spacing: 16) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: AppTheme.mediumCornerRadius)
-                            .fill(
-                                LinearGradient(
-                                    colors: [categoryColor.opacity(0.2), categoryColor.opacity(0.05)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 70, height: 70)
-                        
-                        Image(systemName: categoryIcon)
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [categoryColor, categoryColor.opacity(0.7)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(course.title)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(AppTheme.primaryText)
-                            .lineLimit(2)
-                        
-                        Text(course.description)
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.secondaryText)
-                            .lineLimit(2)
-                        
-                        HStack(spacing: 10) {
-                            Label(course.category, systemImage: "folder.fill")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(categoryColor)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(categoryColor.opacity(0.12))
-                                .cornerRadius(6)
-                            
-                            Label("\(course.modules.count)", systemImage: "list.bullet")
-                                .font(.system(size: 11))
-                                .foregroundColor(AppTheme.secondaryText)
-                        }
-                    }
-                }
-                .padding(16)
-                
-                // Footer
-                HStack {
-                    if isEnrolled {
-                        HStack(spacing: 12) {
-                            MiniProgressRing(progress: progress)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                if progress >= 1.0 {
-                                    Label("Completed", systemImage: "checkmark.seal.fill")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(AppTheme.successGreen)
-                                    
-                                    Text("Certificate ready!")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(AppTheme.secondaryText)
-                                } else {
-                                    Text("In Progress")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(AppTheme.primaryText)
-                                    
-                                    Text("\(Int(progress * 100))% complete")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(AppTheme.secondaryText)
-                                }
-                            }
-                        }
-                        
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(AppTheme.secondaryText)
-                        
-                    } else {
-                        // Price Label
-                        if let price = course.price, price > 0 {
-                            Text(price.formatted(.currency(code: "INR")))
-                                .font(.headline)
-                                .foregroundColor(AppTheme.primaryText)
-                        } else {
-                            Text("Free")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.successGreen)
-                        }
-                        
-                        Spacer()
-                        
-                        Button {
-                            if let price = course.price, price > 0 {
-                                showPaymentRequired = true
-                            } else {
-                                Task {
-                                    isEnrolling = true
-                                    await onEnroll()
-                                    withAnimation {
-                                        showSuccess = true
-                                    }
-                                    try? await Task.sleep(nanoseconds: 1_200_000_000)
-                                    showSuccess = false
-                                    isEnrolling = false
-                                }
-                            }
-                        } label: {
-                            Group {
-                                if showSuccess {
-                                    Label("Enrolled!", systemImage: "checkmark.circle.fill")
-                                } else if isEnrolling {
-                                    ProgressView()
-                                } else {
-                                    Label("Enroll", systemImage: "plus.circle.fill")
-                                }
-                            }
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(showSuccess ? AppTheme.successGreen : .white)
-                            .frame(width: 120, height: 36)
-                            .background(
-                                showSuccess ?
-                                LinearGradient(colors: [AppTheme.successGreen.opacity(0.15), AppTheme.successGreen.opacity(0.15)], startPoint: .topLeading, endPoint: .bottomTrailing) : AppTheme.oceanGradient
-                            )
-                            .cornerRadius(18)
-                        }
-                        .disabled(isEnrolling)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-            }
-            .background(AppTheme.cardBackground)
-            .cornerRadius(AppTheme.cornerRadius)
-            .shadow(color: AppTheme.cardShadow.color,
-                    radius: AppTheme.cardShadow.radius,
-                    x: AppTheme.cardShadow.x,
-                    y: AppTheme.cardShadow.y)
-            .alert("Payment Required", isPresented: $showPaymentRequired) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Please open the course details to purchase this course.")
-            }
-        }
+    // Unified handleEnrollment function for the view to use
+    private func handleEnrollment(for course: Course) async {
+        _ = await viewModel.enroll(course: course, userId: user.id)
+        // Refresh trigger handles the UI update
     }
+    
     
     //
     //        private func loadProgress() {
@@ -701,97 +568,7 @@ struct LearnerDashboardView: View {
     //            }
     //        }
     
-    // MARK: - Stat Card Component
-    
-    struct StatCard: View {
-        let icon: String
-        let title: String
-        let value: String
-        let color: Color
-        @Environment(\.colorScheme) var colorScheme
-        
-        var body: some View {
-            VStack(alignment: .leading, spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(color)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(value)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.primary)
-                    
-                    Text(title)
-                        .font(.subheadline)
-                        .foregroundColor(AppTheme.secondaryText)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                    .fill(AppTheme.secondaryGroupedBackground)
-                    .shadow(
-                        color: color.opacity(colorScheme == .dark ? 0.3 : 0.15),
-                        radius: 15,
-                        y: 5
-                    )
-            )
-        }
-    }
-    struct DeadlineCard: View {
-        let deadline: CourseDeadline
-        
-        var body: some View {
-            VStack(alignment: .leading, spacing: 10) {
-                
-                HStack {
-                    Image(systemName: "calendar.badge.clock")
-                        .foregroundColor(AppTheme.primaryBlue)
-                    
-                    Spacer()
-                    
-                    Text(timeRemainingText(from: deadline.deadlineAt))
-                        .font(.caption.bold())
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(AppTheme.primaryBlue.opacity(0.12))
-                        .foregroundColor(AppTheme.primaryBlue)
-                        .cornerRadius(10)
-                }
-                
-                Text(deadline.title)
-                    .font(.headline)
-                    .foregroundColor(AppTheme.primaryText)
-                    .lineLimit(2)
-                
-                Text(deadline.deadlineAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(14)
-            .frame(width: 240)
-            .background(AppTheme.secondaryGroupedBackground)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-        }
-        
-        private func timeRemainingText(from date: Date) -> String {
-            let interval = date.timeIntervalSinceNow
-            if interval <= 0 { return "Due" }
-            
-            let hours = Int(interval / 3600)
-            let days = hours / 24
-            
-            if days >= 1 { return "\(days)d left" }
-            if hours >= 1 { return "\(hours)h left" }
-            
-            let mins = Int(interval / 60)
-            return "\(max(mins, 1))m left"
-        }
-    }
-    
-    // Components are defined in separate files (LearnerDashboardComponents.swift, etc.)
+    // Components are defined in separate files (LearnerDashboardComponents.swift, StatCard.swift, etc.)
     
     private func colorForCategory(_ category: String) -> Color {
         switch category {

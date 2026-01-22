@@ -90,8 +90,8 @@ struct EducatorProfileView: View {
                 }
             }
             // Photo Picker Changes
-            .onChange(of: selectedPhotoItem) { newItem in
-                if let newItem = newItem {
+            .onChange(of: selectedPhotoItem) { oldValue, newValue in
+                if let newItem = newValue {
                     Task {
                         await viewModel.uploadProfilePicture(item: newItem)
                         selectedPhotoItem = nil

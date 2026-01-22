@@ -12,10 +12,10 @@ import Combine
 class EducatorDashboardViewModel: ObservableObject {
     @Published var totalCourses: Int = 0
     @Published var totalEnrollments: Int = 0
-    @Published var recentCourses: [DashboardCourse] = []
-    @Published var courseToDelete: DashboardCourse?
+    @Published var recentCourses: [Course] = []
+    @Published var courseToDelete: Course?
     @Published var showDeleteConfirmation = false
-    @Published var courseToUnpublish: DashboardCourse?
+    @Published var courseToUnpublish: Course?
     @Published var showUnpublishConfirmation = false
     
     private let courseService = CourseService()
@@ -27,11 +27,11 @@ class EducatorDashboardViewModel: ObservableObject {
         recentCourses = []
     }
     
-    var draftCourses: [DashboardCourse] {
+    var draftCourses: [Course] {
         recentCourses.filter { $0.status == .draft }
     }
     
-    var otherCourses: [DashboardCourse] {
+    var otherCourses: [Course] {
         recentCourses.filter { $0.status != .draft }
     }
     
@@ -40,19 +40,10 @@ class EducatorDashboardViewModel: ObservableObject {
         
         self.totalCourses = courses.count
         self.totalEnrollments = courses.reduce(0) { $0 + $1.enrollmentCount }
-        
-        // Map to DashboardCourse for display
-        self.recentCourses = courses.map { course in
-            DashboardCourse(
-                id: course.id,
-                title: course.title,
-                status: course.status,
-                learnerCount: course.enrollmentCount
-            )
-        }
+        self.recentCourses = courses
     }
     
-    func deleteCourse(_ course: DashboardCourse) async -> Bool {
+    func deleteCourse(_ course: Course) async -> Bool {
         let success = await courseService.deleteCourse(courseID: course.id)
         if success {
             // Remove from local array
@@ -62,38 +53,24 @@ class EducatorDashboardViewModel: ObservableObject {
         return success
     }
     
-    func confirmDelete(_ course: DashboardCourse) {
+    func confirmDelete(_ course: Course) {
         courseToDelete = course
         showDeleteConfirmation = true
     }
     
-    func confirmUnpublish(_ course: DashboardCourse) {
+    func confirmUnpublish(_ course: Course) {
         courseToUnpublish = course
         showUnpublishConfirmation = true
     }
     
-    func unpublishCourse(_ course: DashboardCourse) async -> Bool {
+    func unpublishCourse(_ course: Course) async -> Bool {
         let success = await courseService.updateCourseStatus(courseID: course.id, status: .draft)
         if success {
             // Update local array
             if let index = recentCourses.firstIndex(where: { $0.id == course.id }) {
-                recentCourses[index] = DashboardCourse(
-                    id: course.id,
-                    title: course.title,
-                    status: .draft,
-                    learnerCount: course.learnerCount
-                )
+                recentCourses[index].status = .draft
             }
         }
         return success
     }
-}
-
-// MARK: - Dashboard Course Model
-
-struct DashboardCourse: Identifiable {
-    let id: UUID
-    let title: String
-    let status: CourseStatus
-    let learnerCount: Int
 }

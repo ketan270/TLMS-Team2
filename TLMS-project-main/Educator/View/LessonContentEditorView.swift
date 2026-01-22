@@ -22,8 +22,10 @@ struct LessonContentEditorView: View {
     @State private var showSuccessAlert = false
     @State private var isUploading = false
     @State private var uploadError: String?
+    @State private var transcriptionText: String = ""
     
     @StateObject private var storageService = StorageService()
+    @StateObject private var transcriptionService = TranscriptionService()
     
     // Derived binding to get the lesson
     private var lesson: Lesson? {
@@ -71,35 +73,56 @@ struct LessonContentEditorView: View {
                         case .text:
                             TextContentEditor(textContent: $textContent)
                             
-                        case .video:
-                            MediaContentEditor(
-                                contentType: .video,
-                                description: $contentDescription,
-                                selectedFileURL: $selectedFileURL,
-                                selectedFileName: $selectedFileName,
-                                showFilePicker: $showFilePicker
-                            )
-                            
                         case .pdf:
                             MediaContentEditor(
                                 contentType: .pdf,
                                 description: $contentDescription,
+                                transcript: .constant(""),
+                                isTranscribing: false,
                                 selectedFileURL: $selectedFileURL,
                                 selectedFileName: $selectedFileName,
-                                showFilePicker: $showFilePicker
+                                showFilePicker: $showFilePicker,
+                                onAutoGenerateTranscript: {}
                             )
                             
                         case .presentation:
                             MediaContentEditor(
                                 contentType: .presentation,
                                 description: $contentDescription,
+                                transcript: .constant(""),
+                                isTranscribing: false,
                                 selectedFileURL: $selectedFileURL,
                                 selectedFileName: $selectedFileName,
-                                showFilePicker: $showFilePicker
+                                showFilePicker: $showFilePicker,
+                                onAutoGenerateTranscript: {}
                             )
                             
                         case .quiz:
                             QuizPlaceholderView()
+                        case .video:
+                            MediaContentEditor(
+                                contentType: .video,
+                                description: $contentDescription,
+                                transcript: $transcriptionText,
+                                isTranscribing: transcriptionService.isTranscribing,
+                                selectedFileURL: $selectedFileURL,
+                                selectedFileName: $selectedFileName,
+                                showFilePicker: $showFilePicker,
+                                onAutoGenerateTranscript: {
+                                    if let url = selectedFileURL {
+                                        Task {
+                                            do {
+                                                let result = try await transcriptionService.transcribeVideo(url: url)
+                                                await MainActor.run {
+                                                    transcriptionText = result
+                                                }
+                                            } catch {
+                                                uploadError = "Transcription failed: \(error.localizedDescription)"
+                                            }
+                                        }
+                                    }
+                                }
+                            )
                         }
                         
                         // Save Button
@@ -130,7 +153,10 @@ struct LessonContentEditorView: View {
                 }
                 .alert("Content Saved", isPresented: $showSuccessAlert) {
                     Button("OK") {
-                        dismiss()
+                        // Pop back to Course Structure by removing from navigation path
+                        if !viewModel.navigationPath.isEmpty {
+                            viewModel.navigationPath.removeLast()
+                        }
                     }
                 } message: {
                     Text("Your lesson content has been saved successfully.")
@@ -187,6 +213,7 @@ struct LessonContentEditorView: View {
             textContent = currentLesson.textContent ?? ""
         case .video, .pdf, .presentation:
             contentDescription = currentLesson.contentDescription ?? ""
+            transcriptionText = currentLesson.transcript ?? ""
             selectedFileName = currentLesson.fileName
             if let urlString = currentLesson.fileURL {
                 selectedFileURL = URL(string: urlString)
@@ -210,6 +237,7 @@ struct LessonContentEditorView: View {
             
         case .video, .pdf, .presentation:
             updatedLesson.contentDescription = contentDescription
+            updatedLesson.transcript = transcriptionText
             updatedLesson.fileName = selectedFileName
             
             // Upload file to Supabase Storage if a new file is selected
@@ -318,9 +346,12 @@ struct TextContentEditor: View {
 struct MediaContentEditor: View {
     let contentType: ContentType
     @Binding var description: String
+    @Binding var transcript: String
+    let isTranscribing: Bool
     @Binding var selectedFileURL: URL?
     @Binding var selectedFileName: String?
     @Binding var showFilePicker: Bool
+    var onAutoGenerateTranscript: () -> Void
     
     var body: some View {
         VStack(spacing: 20) {
@@ -442,6 +473,66 @@ struct MediaContentEditor: View {
                 .background(Color(uiColor: .secondarySystemGroupedBackground))
                 .cornerRadius(12)
                 .padding(.horizontal)
+            }
+            
+            // Transcript Section (Only for Video)
+            if contentType == .video {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Transcript (Accessibility)")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("Provide subtitles to help all learners.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        if selectedFileURL != nil {
+                            Button(action: onAutoGenerateTranscript) {
+                                HStack(spacing: 6) {
+                                    if isTranscribing {
+                                        ProgressView()
+                                            .tint(.white)
+                                    } else {
+                                        Image(systemName: "sparkles")
+                                    }
+                                    Text(isTranscribing ? "Generating..." : "Auto-Generate")
+                                }
+                                .font(.caption.bold())
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(isTranscribing ? Color.gray : Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                            }
+                            .disabled(isTranscribing)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    ZStack(alignment: .topLeading) {
+                        if transcript.isEmpty {
+                            Text("Add subtitles with timestamps like [00:15] or use Auto-Generate to create them from your video.")
+                                .foregroundColor(.gray.opacity(0.6))
+                                .font(.caption)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                        }
+                        
+                        TextEditor(text: $transcript)
+                            .frame(minHeight: 150)
+                            .scrollContentBackground(.hidden)
+                            .padding(12)
+                            .font(.system(size: 14, design: .monospaced))
+                    }
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
             }
         }
         .padding(.vertical)
