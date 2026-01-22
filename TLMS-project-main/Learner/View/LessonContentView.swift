@@ -8,6 +8,7 @@ struct LessonContentView: View {
     let course: Course
     let userId: UUID
     @Binding var selectedLesson: Lesson?
+    var isPreviewMode: Bool = false  // Add this to hide completion button for admin preview
     
     // MARK: - State
     /// Single source of truth for completion status
@@ -28,19 +29,27 @@ struct LessonContentView: View {
     
     var body: some View {
         ZStack(alignment: .leading) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    
-                    // MARK: - Header
-                    headerView
-                    
-                    // MARK: - Content
-                    contentView
-                    
-                    // MARK: - Footer Actions
-                    footerActionView
+            // For PDF lessons, show full screen without scroll
+            if lesson.type == .pdf {
+                pdfFullScreenView
+            } else {
+                // For other content types, use normal scroll view
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        
+                        // MARK: - Header
+                        headerView
+                        
+                        // MARK: - Content
+                        contentView
+                        
+                        // MARK: - Footer Actions (hide for preview mode)
+                        if !isPreviewMode {
+                            footerActionView
+                        }
+                    }
+                    .padding()
                 }
-                .padding()
             }
             
             // MARK: - Sidebar Overlay
@@ -52,6 +61,18 @@ struct LessonContentView: View {
         .navigationTitle("Lesson")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    selectedLesson = nil
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark.circle.fill")
+                        Text("Close")
+                    }
+                    .foregroundColor(AppTheme.primaryBlue)
+                }
+            }
+            
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     withAnimation { showSidebar.toggle() }
@@ -145,6 +166,8 @@ struct LessonContentView: View {
         case .pdf:
             if let urlStr = lesson.fileURL, let url = URL(string: urlStr) {
                 DocumentViewer(url: url, fileName: lesson.fileName ?? "Document.pdf", documentType: .pdf)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .edgesIgnoringSafeArea(.bottom)
             } else {
                 EmptyContentView(message: "PDF not available.")
             }
@@ -471,7 +494,23 @@ struct WebViewRepresentable: UIViewRepresentable {
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 }
 
+// MARK: - PDF Full Screen View Extension
 
+extension LessonContentView {
+    @ViewBuilder
+    var pdfFullScreenView: some View {
+        if let urlStr = lesson.fileURL, let url = URL(string: urlStr) {
+            DocumentViewer(url: url, fileName: lesson.fileName ?? "Document.pdf", documentType: .pdf)
+                .ignoresSafeArea(.all, edges: .bottom)
+        } else {
+            VStack {
+                Spacer()
+                EmptyContentView(message: "PDF not available.")
+                Spacer()
+            }
+        }
+    }
+}
 
 
 extension Notification.Name {

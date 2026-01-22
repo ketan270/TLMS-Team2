@@ -15,6 +15,7 @@ struct AdminCourseDetailView: View {
     @State private var isProcessing = false
     @State private var expandedModules: Set<UUID> = []
     @State private var educatorName: String = "Loading..."
+    @State private var selectedLesson: Lesson?
     
     var onStatusChange: (() -> Void)?
     
@@ -137,7 +138,9 @@ struct AdminCourseDetailView: View {
                                     expandedModules.insert(module.id)
                                 }
                             },
-                            onLessonTap: { _ in }
+                            onLessonTap: { lesson in
+                                selectedLesson = lesson
+                            }
                         )
                     }
                 }
@@ -186,6 +189,17 @@ struct AdminCourseDetailView: View {
         .background(AppTheme.groupedBackground)
         .navigationTitle("Review Course")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $selectedLesson) { lesson in
+            LessonContentView(
+                lesson: lesson,
+                course: course,
+                userId: UUID(), // Admin preview doesn't need progress tracking
+                selectedLesson: $selectedLesson,
+                isPreviewMode: true  // Hide completion button for admin
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
         .task {
             await fetchEducatorName()
         }
