@@ -6,12 +6,14 @@ import WebKit
 /// Educator view to preview published courses and their content
 struct EducatorCoursePreviewView: View {
     let courseId: UUID
+    var draftCourse: Course? = nil // Optional draft course for immediate preview
     @StateObject private var courseService = CourseService()
     @State private var course: Course?
     @State private var isLoading = true
     @State private var expandedModules: Set<UUID> = []
     @State private var selectedLesson: Lesson?
     @State private var showLessonContent = false
+    @State private var showEditCourse = false
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -29,33 +31,45 @@ struct EducatorCoursePreviewView: View {
                         courseHeaderView(course: course)
                         
                         // Course Content
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Course Content")
-                                .font(.title2.bold())
-                                .foregroundColor(AppTheme.primaryText)
-                                .padding(.horizontal)
-                            
-                            ForEach(Array(course.modules.enumerated()), id: \.element.id) { index, module in
-                                ModulePreviewCard(
-                                    module: module,
-                                    moduleNumber: index + 1,
-                                    isExpanded: expandedModules.contains(module.id),
-                                    isEnrolled: true,
-                                    onToggle: {
-                                        if expandedModules.contains(module.id) {
-                                            expandedModules.remove(module.id)
-                                        } else {
-                                            expandedModules.insert(module.id)
-                                        }
-                                    },
-                                    onLessonTap: { lesson in
-                                        selectedLesson = lesson
-                                        showLessonContent = true
-                                    }
-                                )
+                        VStack(alignment: .leading, spacing: 20) {
+                            HStack {
+                                Text("Course Content")
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundColor(AppTheme.primaryText)
+                                
+                                Spacer()
+                                
+                                Text("\(course.modules.count) Modules")
+                                    .font(.subheadline)
+                                    .foregroundColor(AppTheme.secondaryText)
                             }
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            
+                            VStack(spacing: 16) {
+                                ForEach(Array(course.modules.enumerated()), id: \.element.id) { index, module in
+                                    ModulePreviewCard(
+                                        module: module,
+                                        moduleNumber: index + 1,
+                                        isExpanded: expandedModules.contains(module.id),
+                                        isEnrolled: true,
+                                        onToggle: {
+                                            if expandedModules.contains(module.id) {
+                                                expandedModules.remove(module.id)
+                                            } else {
+                                                expandedModules.insert(module.id)
+                                            }
+                                        },
+                                        onLessonTap: { lesson in
+                                            selectedLesson = lesson
+                                            showLessonContent = true
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(.horizontal)
                         }
-                        .padding(.bottom, 40)
+                        .padding(.bottom, 60)
                     }
                 }
             } else {
@@ -71,8 +85,28 @@ struct EducatorCoursePreviewView: View {
         }
         .navigationTitle("Course Preview")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let course = course, course.status == .draft {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showEditCourse = true
+                    }) {
+                        Text("Edit")
+                            .font(.body)
+                            .foregroundColor(AppTheme.primaryBlue)
+                    }
+                }
+            }
+        }
         .task {
             await loadCourse()
+        }
+        .fullScreenCover(isPresented: $showEditCourse) {
+            if let course = course {
+                NavigationStack {
+                    CreateCourseView(viewModel: CourseCreationViewModel(educatorID: course.educatorID, existingCourse: course))
+                }
+            }
         }
         .sheet(isPresented: $showLessonContent) {
             if let lesson = selectedLesson, let course = course {
@@ -84,81 +118,181 @@ struct EducatorCoursePreviewView: View {
     }
     
     private func courseHeaderView(course: Course) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Course cover image placeholder
-            ZStack {
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                    .fill(course.categoryColor.opacity(0.2))
-                    .frame(height: 180)
+        VStack(alignment: .leading, spacing: 0) {
+            // MARK: - Premium Image Header
+            ZStack(alignment: .bottomLeading) {
+                // Course Image
+                let imageName = CourseImageHelper.getCourseImage(courseCoverUrl: course.courseCoverUrl, category: course.category)
                 
-                VStack(spacing: 12) {
-                    Image(systemName: course.categoryIcon)
-                        .font(.system(size: 50))
-                        .foregroundColor(course.categoryColor)
-                    
-                    Text(course.category)
-                        .font(.headline)
-                        .foregroundColor(course.categoryColor)
+                if let uiImage = UIImage(named: imageName) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(minHeight: 200) // Reduced from 220
+                        .clipped()
+                } else {
+                    // Fallback gradient
+                    LinearGradient(
+                        colors: [course.categoryColor.opacity(0.8), course.categoryColor.opacity(0.4)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .frame(minHeight: 200) // Reduced from 220
+                    .overlay(
+                        Image(systemName: course.categoryIcon)
+                            .font(.system(size: 80, weight: .bold))
+                            .foregroundColor(.white.opacity(0.2))
+                    )
                 }
-            }
-            
-            // Course title and description
-            VStack(alignment: .leading, spacing: 12) {
-                Text(course.title)
-                    .font(.title.bold())
-                    .foregroundColor(AppTheme.primaryText)
                 
-                Text(course.description)
-                    .font(.body)
-                    .foregroundColor(AppTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Dark Overlay for readability
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.8)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+                .frame(minHeight: 200) // Reduced from 220
                 
-                // Course metadata
-                HStack(spacing: 16) {
-                    Label(course.level.rawValue, systemImage: "chart.bar.fill")
-                        .font(.subheadline)
-                        .foregroundColor(AppTheme.secondaryText)
+                // Title and Category Overlay
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(course.category.uppercased())
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(course.categoryColor.opacity(0.8))
+                        .cornerRadius(4)
                     
-                    if let price = course.price {
-                        Label("$\(String(format: "%.2f", price))", systemImage: "dollarsign.circle.fill")
-                            .font(.subheadline)
-                            .foregroundColor(AppTheme.successGreen)
+                    Text(course.title)
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.6), radius: 4, x: 0, y: 2)
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(2)
+                        .padding(.bottom, 20) // Add padding to avoid overlapping the card
+                }
+                .padding(24)
+            }
+            .cornerRadius(20, corners: [.bottomLeft, .bottomRight])
+            .ignoresSafeArea(edges: .top)
+            
+            // MARK: - Course Details Card
+            VStack(alignment: .leading, spacing: 20) {
+                // Metrics Row
+                HStack(spacing: 12) {
+                    // Rating
+                    if let rating = course.ratingAvg, rating > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.orange)
+                            Text(String(format: "%.1f", rating))
+                                .fontWeight(.bold)
+                            Text("(\(course.ratingCount))")
+                                .foregroundColor(AppTheme.secondaryText)
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
                     } else {
-                        Label("Free", systemImage: "gift.fill")
-                            .font(.subheadline)
-                            .foregroundColor(AppTheme.successGreen)
+                        Text("No ratings yet")
+                            .font(.subheadline.italic())
+                            .foregroundColor(AppTheme.secondaryText)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     
-                    Label("\(course.enrollmentCount) enrolled", systemImage: "person.2.fill")
-                        .font(.subheadline)
-                        .foregroundColor(AppTheme.secondaryText)
+                    Spacer()
+                    
+                    // Price/Level
+                    HStack(spacing: 8) {
+                        if let price = course.price, price > 0 {
+                            Text(price.formatted(.currency(code: "INR")))
+                                .font(.headline)
+                                .foregroundColor(AppTheme.primaryBlue)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(AppTheme.primaryBlue.opacity(0.1))
+                                .cornerRadius(8)
+                                .fixedSize(horizontal: true, vertical: false)
+                        } else {
+                            Text("Free")
+                                .font(.headline)
+                                .foregroundColor(AppTheme.successGreen)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(AppTheme.successGreen.opacity(0.1))
+                                .cornerRadius(8)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        
+                        Text(course.level.rawValue)
+                            .font(.subheadline.weight(.medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(AppTheme.secondaryText.opacity(0.1))
+                            .cornerRadius(8)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                 }
                 
-                // Status badge
-                HStack(spacing: 4) {
-                    Image(systemName: course.status.icon)
-                        .font(.caption)
-                    Text(course.status.displayName)
-                        .font(.caption.weight(.medium))
+                // Description
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("About this Course")
+                        .font(.headline)
+                        .foregroundColor(AppTheme.primaryText)
+                    
+                    Text(course.description)
+                        .font(.body)
+                        .foregroundColor(AppTheme.secondaryText)
+                        .lineSpacing(4)
                 }
-                .foregroundColor(course.status.color)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(course.status.color.opacity(0.1))
-                .cornerRadius(8)
+                
+                // Stats Row
+                HStack(spacing: 12) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.2.fill")
+                        Text("\(course.enrollmentCount) Enrolled")
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "book.fill")
+                        Text("\(course.modules.count) Modules")
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                    
+                    Spacer()
+                    
+                    // Status Badge
+                    HStack(spacing: 4) {
+                        Image(systemName: course.status.icon)
+                        Text(course.status.displayName)
+                    }
+                    .font(.caption.bold())
+                    .foregroundColor(course.status.color)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(course.status.color.opacity(0.1))
+                    .cornerRadius(6)
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+                .font(.subheadline)
+                .foregroundColor(AppTheme.secondaryText)
             }
+            .padding(20)
+            .background(AppTheme.secondaryGroupedBackground)
+            .cornerRadius(20)
+            .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+            .padding(.horizontal)
+            .padding(.top, -30) // Overlap with image
         }
-        .padding()
-        .background(AppTheme.secondaryGroupedBackground)
-        .cornerRadius(AppTheme.cornerRadius)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-        .padding(.horizontal)
-        .padding(.top)
     }
     
     private func loadCourse() async {
         isLoading = true
-        course = await courseService.fetchCourse(by: courseId)
+        // Use draft course if provided, otherwise fetch by ID
+        if let draftCourse = draftCourse {
+            course = draftCourse
+        } else {
+            course = await courseService.fetchCourse(by: courseId)
+        }
         isLoading = false
     }
 }

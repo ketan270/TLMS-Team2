@@ -168,13 +168,27 @@ class CourseService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            // 1. Fetch the course
             let courses: [Course] = try await supabase
                 .from("courses")
                 .select()
                 .eq("id", value: courseID.uuidString)
                 .execute()
                 .value
-            return courses.first
+            
+            guard var course = courses.first else { return nil }
+            
+            // 2. Fetch real-time enrollment count
+            let enrollments: [Enrollment] = try await supabase
+                .from("enrollments")
+                .select()
+                .eq("course_id", value: courseID.uuidString)
+                .execute()
+                .value
+            
+            course.enrollmentCount = enrollments.count
+            
+            return course
         } catch {
             errorMessage = "Failed to fetch course: \(error.localizedDescription)"
             return nil
@@ -578,9 +592,26 @@ class CourseService: ObservableObject {
     /// Generate certificate automatically when course is completed
     private func generateCertificateIfNeeded(userId: UUID, courseId: UUID, courseName: String) async {
         do {
-            // Get user name from auth metadata
-            let user = try await supabase.auth.user()
-            let userName = user.userMetadata["full_name"] as? String ?? "Learner"
+            // Get user name from user_profiles table
+            var userName = "Learner"
+            do {
+                struct UserProfile: Decodable {
+                    let full_name: String
+                }
+                
+                let profile: UserProfile = try await supabase
+                    .from("user_profiles")
+                    .select("full_name")
+                    .eq("id", value: userId.uuidString)
+                    .single()
+                    .execute()
+                    .value
+                
+                userName = profile.full_name
+            } catch {
+                print("⚠️ Failed to fetch user name: \(error)")
+            }
+            
             // Check if certificate already exists
             let existing: [Certificate.DatabaseModel] = try await supabase
                 .from("certificates")

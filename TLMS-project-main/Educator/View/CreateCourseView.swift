@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import _PhotosUI_SwiftUI
 
 struct CreateCourseView: View {
     @ObservedObject var viewModel: CourseCreationViewModel
@@ -21,148 +22,243 @@ struct CreateCourseView: View {
                 .ignoresSafeArea()
             
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 32) {
                     // Header
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Create Course")
-                            .font(.largeTitle.bold())
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Course Details")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundColor(AppTheme.primaryText)
                         
-                        Text("Start by providing the basic details for your course.")
+                        Text("Let's set up the foundation of your course. You can always edit these details later.")
                             .font(.body)
                             .foregroundColor(AppTheme.secondaryText)
+                            .lineSpacing(4)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                    .padding(.top)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
                     
-                    // Form Fields
-                    VStack(spacing: 20) {
-                        // Title
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Course Title")
+                    VStack(spacing: 28) {
+                        // MARK: - Course Title
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Course Title", systemImage: "textformat")
                                 .font(.headline)
-                                .foregroundColor(AppTheme.secondaryText)
+                                .foregroundColor(AppTheme.primaryText)
                             
-                            TextField("e.g. Mastering SwiftUI", text: $viewModel.newCourse.title)
+                            TextField("e.g. Advanced iOS Architecture", text: $viewModel.newCourse.title)
                                 .font(.body)
-                                .padding()
+                                .padding(16)
                                 .background(AppTheme.secondaryGroupedBackground)
-                                .cornerRadius(AppTheme.cornerRadius)
+                                .cornerRadius(12)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
                                 )
                         }
                         
-                        // Category
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Category")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.secondaryText)
+                        // MARK: - Category & Level Row
+                        HStack(spacing: 16) {
+                            // Category
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Category", systemImage: "folder")
+                                    .font(.headline)
+                                    .foregroundColor(AppTheme.primaryText)
+                                
+                                Menu {
+                                    ForEach(categories, id: \.self) { category in
+                                        Button(action: { viewModel.newCourse.category = category }) {
+                                            Text(category)
+                                            if viewModel.newCourse.category == category {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(viewModel.newCourse.category.isEmpty ? "Select" : viewModel.newCourse.category)
+                                            .foregroundColor(viewModel.newCourse.category.isEmpty ? AppTheme.secondaryText : AppTheme.primaryText)
+                                        Spacer()
+                                        Image(systemName: "chevron.down")
+                                            .font(.caption.bold())
+                                            .foregroundColor(AppTheme.secondaryText)
+                                    }
+                                    .padding(16)
+                                    .background(AppTheme.secondaryGroupedBackground)
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                    )
+                                }
+                            }
                             
-                            Menu {
-                                ForEach(categories, id: \.self) { category in
-                                    Button(action: {
-                                        viewModel.newCourse.category = category
-                                    }) {
-                                        Text(category)
-                                        if viewModel.newCourse.category == category {
-                                            Image(systemName: "checkmark")
+                            // Level
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Level", systemImage: "chart.bar")
+                                    .font(.headline)
+                                    .foregroundColor(AppTheme.primaryText)
+                                
+                                Menu {
+                                    ForEach(CourseLevel.allCases, id: \.self) { level in
+                                        Button(action: { viewModel.newCourse.level = level }) {
+                                            Text(level.rawValue)
+                                            if viewModel.newCourse.level == level {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(viewModel.newCourse.level.rawValue)
+                                            .foregroundColor(AppTheme.primaryText)
+                                        Spacer()
+                                        Image(systemName: "chevron.down")
+                                            .font(.caption.bold())
+                                            .foregroundColor(AppTheme.secondaryText)
+                                    }
+                                    .padding(16)
+                                    .background(AppTheme.secondaryGroupedBackground)
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // MARK: - Price Row
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Pricing (₹)", systemImage: "indianrupeesign.circle")
+                                .font(.headline)
+                                .foregroundColor(AppTheme.primaryText)
+                            
+                            TextField("Enter amount (0 for Free)", value: $viewModel.newCourse.price, format: .number)
+                                .keyboardType(.decimalPad)
+                                .font(.body.bold())
+                                .padding(16)
+                                .background(AppTheme.secondaryGroupedBackground)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                )
+                                .foregroundColor(AppTheme.primaryBlue)
+                        }
+                        
+                        // MARK: - Description
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Description", systemImage: "doc.text")
+                                .font(.headline)
+                                .foregroundColor(AppTheme.primaryText)
+                            
+                            TextEditor(text: $viewModel.newCourse.description)
+                                .frame(minHeight: 120)
+                                .padding(12)
+                                .background(AppTheme.secondaryGroupedBackground)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                )
+                        }
+                        
+                        // MARK: - Cover Image Selection
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("Course Cover", systemImage: "photo")
+                                .font(.headline)
+                                .foregroundColor(AppTheme.primaryText)
+                            
+                            ZStack(alignment: .bottomTrailing) {
+                                Group {
+                                    if let data = viewModel.selectedImageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(height: 180)
+                                            .cornerRadius(16)
+                                            .clipped()
+                                    } else {
+                                        let imageName = CourseImageHelper.getCourseImage(courseCoverUrl: viewModel.newCourse.courseCoverUrl, category: viewModel.newCourse.category)
+                                        
+                                        if let uiImage = UIImage(named: imageName) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(height: 180)
+                                                .cornerRadius(16)
+                                                .clipped()
+                                        } else {
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(AppTheme.primaryBlue.opacity(0.1))
+                                                .frame(height: 180)
+                                                .overlay(
+                                                    Image(systemName: "photo.on.rectangle.angled")
+                                                        .font(.largeTitle)
+                                                        .foregroundColor(AppTheme.primaryBlue.opacity(0.4))
+                                                )
                                         }
                                     }
                                 }
-                            } label: {
-                                HStack {
-                                    Text(viewModel.newCourse.category.isEmpty ? "Select Category" : viewModel.newCourse.category)
-                                        .foregroundColor(viewModel.newCourse.category.isEmpty ? AppTheme.secondaryText : AppTheme.primaryText)
-                                    Spacer()
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.subheadline)
-                                        .foregroundColor(AppTheme.secondaryText)
+                                
+                                HStack(spacing: 8) {
+                                    PhotosPicker(selection: $viewModel.selectedItem, matching: .images) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "photo.badge.plus")
+                                            Text("Pick from Photos")
+                                        }
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(.ultraThinMaterial)
+                                        .cornerRadius(20)
+                                    }
+                                    
+                                    if viewModel.selectedImageData == nil {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "sparkles")
+                                            Text("AI Recommended")
+                                        }
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(.ultraThinMaterial)
+                                        .cornerRadius(20)
+                                    }
                                 }
-                                .padding()
-                                .background(AppTheme.secondaryGroupedBackground)
-                                .cornerRadius(AppTheme.cornerRadius)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
-                                )
+                                .padding(12)
                             }
                             
-                            Text("Helps learners discover your course easily")
+                            Text(viewModel.selectedImageData != nil ? "Your custom cover image is set." : "Your cover image is automatically optimized based on your category, or you can pick your own.")
                                 .font(.caption)
                                 .foregroundColor(AppTheme.secondaryText)
-                                .padding(.top, 4)
-                        }
-                        
-                        // Price
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Course Price (₹)")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.secondaryText)
-                            
-                            TextField("e.g. 499", value: $viewModel.newCourse.price, format: .number)
-                                .keyboardType(.decimalPad)
-                                .font(.body)
-                                .padding()
-                                .background(AppTheme.secondaryGroupedBackground)
-                                .cornerRadius(AppTheme.cornerRadius)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
-                                )
-                        }
-                        
-                        // Description
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Description")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.secondaryText)
-                            
-                            ZStack(alignment: .topLeading) {
-                                if viewModel.newCourse.description.isEmpty {
-                                    Text("Describe what learners will learn in this course...")
-                                        .foregroundColor(AppTheme.secondaryText.opacity(0.6))
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                }
-                                
-                                TextEditor(text: $viewModel.newCourse.description)
-                                    .frame(minHeight: 120)
-                                    .scrollContentBackground(.hidden)
-                                    .padding(8)
-                            }
-                            .background(AppTheme.secondaryGroupedBackground)
-                            .cornerRadius(AppTheme.cornerRadius)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
-                            )
+                                .italic()
                         }
                     }
                     .padding(24)
-                    .background(AppTheme.secondaryGroupedBackground)
-                    .cornerRadius(AppTheme.cornerRadius)
-                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                    .padding(.horizontal)
+                    .background(AppTheme.cardBackground)
+                    .cornerRadius(20)
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+                    .padding(.horizontal, 24)
                     
-                    // Continue Button
+                    // MARK: - Continue Button
                     NavigationLink(destination: CourseStructureView(viewModel: viewModel)) {
-                        HStack(spacing: 8) {
-                            Text("Next")
+                        HStack {
+                            Text("Next: Structure Course")
                                 .font(.headline)
-                            Image(systemName: "arrow.right")
-                                .font(.headline)
+                            Spacer()
+                            Image(systemName: "chevron.right")
                         }
+                        .padding()
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
                         .background(viewModel.isCourseInfoValid ? AppTheme.primaryBlue : Color.gray.opacity(0.3))
                         .foregroundColor(.white)
-                        .cornerRadius(AppTheme.cornerRadius)
+                        .cornerRadius(16)
+                        .shadow(color: viewModel.isCourseInfoValid ? AppTheme.primaryBlue.opacity(0.3) : .clear, radius: 8, y: 4)
                     }
                     .disabled(!viewModel.isCourseInfoValid)
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
                 }
             }
         }
@@ -172,9 +268,12 @@ struct CreateCourseView: View {
                 Button(action: {
                     dismiss()
                 }) {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.semibold))
-                        .foregroundColor(.black)
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark.circle.fill")
+                        Text("Close")
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundColor(AppTheme.secondaryText)
                 }
             }
         }

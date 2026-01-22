@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>We need speech recognition permission to automatically generate transcripts for your course videos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is required for speech recognition and audio recording features.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is required to select course cover images and video content.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+</dict>
 </plist>

@@ -11,106 +11,96 @@ import SwiftUI
 struct CategoryCourseCard: View {
     let course: Course
     let isEnrolled: Bool
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         HStack(spacing: 16) {
-            // Course Icon
+            // MARK: - Left: Category Icon
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(course.categoryColor.opacity(0.15))
-                    .frame(width: 70, height: 70)
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(course.categoryColor.opacity(0.1))
+                    .frame(width: 76, height: 76)
                 
                 Image(systemName: course.categoryIcon)
-                    .font(.system(size: 28))
+                    .font(.system(size: 32, weight: .semibold))
                     .foregroundColor(course.categoryColor)
             }
+            .shadow(color: course.categoryColor.opacity(0.15), radius: 6, x: 0, y: 3)
             
-            // Course Info
+            // MARK: - Middle: Course Info
             VStack(alignment: .leading, spacing: 6) {
                 Text(course.title)
-                    .font(.headline)
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(AppTheme.primaryText)
-                    .lineLimit(2)
+                    .lineLimit(1)
                 
                 Text(course.description)
-                    .font(.subheadline)
+                    .font(.system(size: 14))
                     .foregroundColor(AppTheme.secondaryText)
                     .lineLimit(2)
                 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     // Category Badge
                     HStack(spacing: 4) {
                         Image(systemName: "folder.fill")
                             .font(.system(size: 10))
                         Text(course.category)
-                            .font(.caption.weight(.medium))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                            .font(.system(size: 11, weight: .semibold))
                     }
                     .foregroundColor(course.categoryColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(course.categoryColor.opacity(0.15))
-                    .cornerRadius(6)
-                    .fixedSize()
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(course.categoryColor.opacity(0.12))
+                    .cornerRadius(8)
                     
                     // Module Count
                     HStack(spacing: 4) {
                         Image(systemName: "list.bullet")
                             .font(.system(size: 10))
-                        Text("\(course.modules.count)")
-                            .font(.caption)
+                        Text("\(course.modules.count) modules")
+                            .font(.system(size: 11, weight: .medium))
                     }
-                    .foregroundColor(.secondary)
-                    .fixedSize()
-                    
-                    // Rating
-                    if let rating = course.ratingAvg, course.ratingCount > 0 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(.orange)
-                            Text(String(format: "%.1f", rating))
-                                .font(.caption.bold())
-                                .foregroundColor(AppTheme.primaryText)
-                        }
-                        .fixedSize()
-                    }
+                    .foregroundColor(AppTheme.secondaryText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(AppTheme.secondaryGroupedBackground)
+                    .cornerRadius(8)
                 }
-                .fixedSize(horizontal: true, vertical: false)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
             Spacer()
             
-            // Enrollment Status / Price
-            VStack(alignment: .trailing, spacing: 8) {
-                // Price Label
-                if let price = course.price, price > 0 {
-                    Text(price.formatted(.currency(code: "INR")))
-                        .font(.subheadline.bold())
+            // MARK: - Right: Action/Price Pill
+            VStack(alignment: .center, spacing: 6) {
+                if isEnrolled {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 26))
                         .foregroundColor(AppTheme.primaryBlue)
                 } else {
-                    Text("Free")
-                        .font(.subheadline.bold())
-                        .foregroundColor(AppTheme.successGreen)
+                    if let price = course.price, price > 0 {
+                        Text(price.formatted(.currency(code: "INR")))
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(AppTheme.primaryText)
+                    } else {
+                        Text("Free")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(AppTheme.successGreen)
+                    }
                 }
                 
-                // Status Icon
-                if isEnrolled {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(AppTheme.successGreen)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.secondary)
-                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(AppTheme.secondaryText.opacity(0.6))
             }
-            .padding(16)
-            .background(AppTheme.secondaryGroupedBackground)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+            .frame(width: 100, height: 74)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(uiColor: .systemBackground))
+                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.08), radius: 10, x: 0, y: 4)
+            )
         }
+        .padding(.vertical, 8)
+        .background(Color.clear)
     }
 }

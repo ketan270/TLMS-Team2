@@ -17,119 +17,167 @@ struct CoursePreviewView: View {
                 .ignoresSafeArea()
             
             ScrollView {
-                VStack(spacing: 24) {
-                    // Course Info Card
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(viewModel.newCourse.title)
-                            .font(.title2.bold())
-                            .foregroundColor(AppTheme.primaryText)
-                        
-                        Text(viewModel.newCourse.description)
-                            .font(.body)
-                            .foregroundColor(AppTheme.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                        
-                        HStack(spacing: 8) {
-                            Image(systemName: "folder.fill")
-                                .font(.caption)
-                            Text(viewModel.newCourse.category)
-                                .font(.subheadline)
+                VStack(spacing: 0) {
+                    // MARK: - Hero Image Section
+                    ZStack(alignment: .bottomLeading) {
+                        if let data = viewModel.selectedImageData, let uiImage = UIImage(data: data) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(minHeight: 220)
+                                .clipped()
+                        } else {
+                            let imageName = CourseImageHelper.getCourseImage(courseCoverUrl: viewModel.newCourse.courseCoverUrl, category: viewModel.newCourse.category)
+                            
+                            if let uiImage = UIImage(named: imageName) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(minHeight: 220)
+                                    .clipped()
+                            } else {
+                                LinearGradient(
+                                    colors: [viewModel.newCourse.categoryColor.opacity(0.8), viewModel.newCourse.categoryColor.opacity(0.4)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                .frame(minHeight: 220)
+                            }
                         }
-                        .foregroundColor(AppTheme.primaryBlue)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(AppTheme.primaryBlue.opacity(0.1))
-                        .cornerRadius(6)
-                    }
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.secondaryGroupedBackground)
-                    .cornerRadius(AppTheme.cornerRadius)
-                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                    .padding(.horizontal)
-                    .padding(.top)
-                    
-                    // Course Content
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Course Content")
-                            .font(.title2.bold())
-                            .padding(.horizontal)
                         
-                        ForEach(Array(viewModel.newCourse.modules.enumerated()), id: \.element.id) { index, module in
-                            ModulePreviewCard(
-                                module: module,
-                                moduleNumber: index + 1,
-                                isExpanded: expandedModules.contains(module.id),
-                                isEnrolled: true,
-                                onToggle: {
-                                    if expandedModules.contains(module.id) {
-                                        expandedModules.remove(module.id)
+                        // Dark Overlay
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.8)],
+                            startPoint: .center,
+                            endPoint: .bottom
+                        )
+                        .frame(minHeight: 220)
+                        
+                        // Title Overlay
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(viewModel.newCourse.category.uppercased())
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white.opacity(0.9))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(viewModel.newCourse.categoryColor.opacity(0.8))
+                                .cornerRadius(4)
+                            
+                            Text(viewModel.newCourse.title)
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 4, x: 0, y: 2)
+                                .minimumScaleFactor(0.6)
+                                .lineLimit(2)
+                                .padding(.bottom, 20)
+                        }
+                        .padding(24)
+                    }
+                    .cornerRadius(20, corners: [.bottomLeft, .bottomRight])
+                    .ignoresSafeArea(edges: .top)
+                    
+                    VStack(spacing: 24) {
+                        // Course Info Card
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("About this Course")
+                                .font(.headline)
+                                .foregroundColor(AppTheme.primaryText)
+                            
+                            Text(viewModel.newCourse.description)
+                                .font(.body)
+                                .foregroundColor(AppTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppTheme.secondaryGroupedBackground)
+                        .cornerRadius(20)
+                        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+                        .padding(.horizontal)
+                        .padding(.top, -30)
+                        
+                        // Course Content
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Course Content")
+                                .font(.title2.bold())
+                                .padding(.horizontal)
+                            
+                            ForEach(Array(viewModel.newCourse.modules.enumerated()), id: \.element.id) { index, module in
+                                ModulePreviewCard(
+                                    module: module,
+                                    moduleNumber: index + 1,
+                                    isExpanded: expandedModules.contains(module.id),
+                                    isEnrolled: true,
+                                    onToggle: {
+                                        if expandedModules.contains(module.id) {
+                                            expandedModules.remove(module.id)
+                                        } else {
+                                            expandedModules.insert(module.id)
+                                        }
+                                    },
+                                    onLessonTap: { _ in }
+                                )
+                            }
+                        }
+                        
+                        // Action Buttons
+                        HStack(spacing: 12) {
+                            // Save as Draft Button
+                            Button(action: {
+                                handleSaveDraft()
+                            }) {
+                                HStack(spacing: 8) {
+                                    if isProcessing {
+                                        ProgressView()
+                                            .tint(AppTheme.primaryText)
                                     } else {
-                                        expandedModules.insert(module.id)
+                                        Image(systemName: "doc.badge.plus")
+                                            .font(.headline)
+                                        Text("Save as Draft")
+                                            .font(.headline)
                                     }
-                                },
-                                onLessonTap: { _ in }
-                            )
-                        }
-                    }
-                    
-                    // Action Buttons
-                    HStack(spacing: 12) {
-                        // Save as Draft Button
-                        Button(action: {
-                            handleSaveDraft()
-                        }) {
-                            HStack(spacing: 8) {
-                                if isProcessing {
-                                    ProgressView()
-                                        .tint(AppTheme.primaryText)
-                                } else {
-                                    Image(systemName: "doc.badge.plus")
-                                        .font(.headline)
-                                    Text("Save as Draft")
-                                        .font(.headline)
                                 }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(AppTheme.secondaryGroupedBackground)
+                                .foregroundColor(AppTheme.primaryText)
+                                .cornerRadius(AppTheme.cornerRadius)
+                                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                             }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(AppTheme.secondaryGroupedBackground)
-                            .foregroundColor(AppTheme.primaryText)
-                            .cornerRadius(AppTheme.cornerRadius)
-                            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                        }
-                        .disabled(isProcessing)
-                        
-                        // Send to Review Button
-                        Button(action: {
-                            handleSendToReview()
-                        }) {
-                            HStack(spacing: 8) {
-                                if isProcessing {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else {
-                                    Image(systemName: "paperplane.fill")
-                                        .font(.headline)
-                                    Text("Send to Review")
-                                        .font(.headline)
+                            .disabled(isProcessing)
+                            
+                            // Send to Review Button
+                            Button(action: {
+                                handleSendToReview()
+                            }) {
+                                HStack(spacing: 8) {
+                                    if isProcessing {
+                                        ProgressView()
+                                            .tint(.white)
+                                    } else {
+                                        Image(systemName: "paperplane.fill")
+                                            .font(.headline)
+                                        Text("Send to Review")
+                                            .font(.headline)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(AppTheme.primaryBlue)
+                                .foregroundColor(.white)
+                                .cornerRadius(AppTheme.cornerRadius)
+                                .shadow(color: AppTheme.primaryBlue.opacity(0.3), radius: 8, x: 0, y: 4)
                             }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(AppTheme.primaryBlue)
-                            .foregroundColor(.white)
-                            .cornerRadius(AppTheme.cornerRadius)
-                            .shadow(color: AppTheme.primaryBlue.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .disabled(isProcessing)
                         }
-                        .disabled(isProcessing)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 40)
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                    .padding(.bottom, 40)
                 }
             }
             
-            // Success Banner
+            // Success Banner Overlay
             if showSuccessBanner {
                 VStack {
                     HStack(spacing: 12) {
@@ -219,7 +267,6 @@ struct CoursePreviewView: View {
             isProcessing = false
         }
     }
-
 }
 
 // Extension to make Alert easy
@@ -237,8 +284,6 @@ extension View {
         }
     }
 }
-
-
 
 #Preview {
     NavigationView {

@@ -29,6 +29,7 @@ struct LearnerCourseDetailView: View {
     @State private var showCompletionPopup = false
     @State private var showCertificate = false
     @State private var isCheckingProgress = false
+    @State private var showEnrollmentSuccess = false
 
     @State private var reviews: [CourseReview] = []
     @State private var userReview: CourseReview?
@@ -96,6 +97,13 @@ struct LearnerCourseDetailView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage)
+        }
+        .alert("Enrollment Successful! 🎉", isPresented: $showEnrollmentSuccess) {
+            Button("OK", role: .cancel) {
+                dismiss()
+            }
+        } message: {
+            Text("You have successfully enrolled in \(course.title). The course has been added to your My Courses tab.")
         }
         .alert("Enrollment Required", isPresented: $showEnrollmentAlert) {
             Button("Cancel", role: .cancel) {}
@@ -404,7 +412,18 @@ struct LearnerCourseDetailView: View {
             courseId: course.id,
             userId: userId
         )
-        if success { dismiss() }
+        
+        if success {
+            // Notify dashboard to refresh enrollment state
+            NotificationCenter.default.post(
+                name: .courseEnrolled,
+                object: nil
+            )
+            
+            // Show success alert to user
+            showPaymentSheet = false
+            showEnrollmentSuccess = true
+        }
     }
 
     private func checkForCompletion() {

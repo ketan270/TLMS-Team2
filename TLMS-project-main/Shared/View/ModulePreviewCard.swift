@@ -70,6 +70,16 @@ struct ModulePreviewCard: View {
 
                             Spacer()
                             
+                            // Play button indicator for videos
+                            if lesson.type == .video && isEnrolled {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                                    .background(AppTheme.primaryBlue)
+                                    .clipShape(Circle())
+                            }
+                            
                             // Show lock icon if not enrolled
                             if !isEnrolled {
                                 Image(systemName: "lock.fill")

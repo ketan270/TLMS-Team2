@@ -93,14 +93,20 @@ class CertificateService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            // Fetch certificates and join with courses to filter out deleted/unpublished courses
             let certificates: [Certificate.DatabaseModel] = try await supabase
                 .from("certificates")
-                .select()
+                .select("""
+                    *,
+                    courses!inner(status)
+                """)
                 .eq("user_id", value: userId)
+                .eq("courses.status", value: "published")
                 .order("created_at", ascending: false)
                 .execute()
                 .value
             
+            print("✅ Fetched \(certificates.count) certificates for published courses")
             return certificates.map { $0.toCertificate() }
             
         } catch {

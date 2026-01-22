@@ -19,6 +19,7 @@ struct LessonContentView: View {
     @State private var isLoading = false
     @State private var transcriptFileURL: URL?
     @State private var isQuizActive = false
+    @State private var showCompletionView = false
     
     @StateObject private var courseService = CourseService()
     
@@ -52,33 +53,31 @@ struct LessonContentView: View {
                 }
             }
             
-            // MARK: - Sidebar Overlay
             if showSidebar {
                 sidebarOverlay
             }
+        }
+        .fullScreenCover(isPresented: $showCompletionView) {
+            CourseCompletionView(
+                course: course,
+                userId: userId,
+                onDismiss: { showCompletionView = false },
+                onViewCertificate: {
+                    // Navigate to certificate view or handle deep link
+                    showCompletionView = false
+                }
+            )
         }
         .background(AppTheme.groupedBackground)
         .navigationTitle("Lesson")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    selectedLesson = nil
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "xmark.circle.fill")
-                        Text("Close")
-                    }
-                    .foregroundColor(AppTheme.primaryBlue)
-                }
-            }
-            
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     withAnimation { showSidebar.toggle() }
                 } label: {
-                    Image(systemName: "list.bullet.sidebar")
-                        .font(.system(size: 16, weight: .semibold))
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 18))
                 }
             }
         }
@@ -86,8 +85,8 @@ struct LessonContentView: View {
         .task {
             await loadAllCompletions()
         }
-        // Watch for lesson changes (if logic requires re-check, though set is global for course)
-        .onChange(of: selectedLesson?.id) { _ in
+        // Watch for lesson changes (if logic requires re-check)
+        .onChange(of: selectedLesson?.id) { oldValue, newValue in
             // Maybe scroll to top?
         }
         .alert("Lesson Complete!", isPresented: $showCompletionAlert) {
@@ -161,7 +160,50 @@ struct LessonContentView: View {
             }
             
         case .video:
-            videoContentView
+            if let urlStr = lesson.fileURL, let url = URL(string: urlStr) {
+                VStack(spacing: 24) {
+                    // Modern Video Player with Transcript
+                    VideoPlayerWithTranscript(
+                        videoURL: url,
+                        transcript: lesson.transcript,
+                        onVideoCompleted: {
+                            if !isCurrentLessonCompleted {
+                                autoCompleteLesson()
+                            }
+                        }
+                    )
+                    .background(AppTheme.secondaryGroupedBackground)
+                    .cornerRadius(AppTheme.cornerRadius)
+                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    
+                    // About section Card
+                    if let desc = lesson.contentDescription {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundColor(AppTheme.primaryBlue)
+                                Text("About this video")
+                                    .font(.headline)
+                            }
+                            
+                            Text(desc)
+                                .font(.body)
+                                .foregroundColor(AppTheme.secondaryText)
+                                .lineSpacing(4)
+                        }
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .fill(AppTheme.secondaryGroupedBackground)
+                                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
+                        )
+                    }
+                }
+                .padding(.vertical, 8)
+            } else {
+                EmptyContentView(message: "Video content is temporarily unavailable.")
+            }
             
         case .pdf:
             if let urlStr = lesson.fileURL, let url = URL(string: urlStr) {
@@ -225,97 +267,6 @@ struct LessonContentView: View {
             }
         }
     }
-    
-    private var videoContentView: some View {
-        Group {
-            if let urlStr = lesson.fileURL,
-               let url = URL(string: urlStr) {
-
-                VStack(spacing: 16) {
-
-                    // Video Player
-                    VideoPlayer(player: AVPlayer(url: url))
-                        .frame(height: 250)
-                        .cornerRadius(AppTheme.cornerRadius)
-
-                    // About section
-                    if let desc = lesson.contentDescription {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("About this video")
-                                .font(.headline)
-
-                            Text(desc)
-                                .font(.body)
-                                .foregroundColor(AppTheme.secondaryText)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppTheme.secondaryGroupedBackground)
-                        .cornerRadius(AppTheme.cornerRadius)
-                    }
-
-                    // Transcript Section
-                    VStack(spacing: 8) {
-
-                        // Header + actions
-                        HStack {
-                            Text("Transcript")
-                                .font(.headline)
-
-                            Spacer()
-
-                            // Download (only if transcript exists)
-                            if let transcript = lesson.transcript,
-                               !transcript.isEmpty {
-
-                                Button {
-                                    transcriptFileURL = createTranscriptFile(from: transcript)
-                                } label: {
-                                    Image(systemName: "arrow.down.doc")
-                                }
-
-                                if let fileURL = transcriptFileURL {
-                                    ShareLink(item: fileURL) {
-                                        Image(systemName: "square.and.arrow.up")
-                                    }
-                                }
-                            }
-
-                            Button(showTranscript ? "Hide" : "Show") {
-                                showTranscript.toggle()
-                            }
-                            .foregroundColor(AppTheme.primaryBlue)
-                        }
-
-                        // Transcript content
-                        if showTranscript {
-                            if let transcript = lesson.transcript,
-                               !transcript.isEmpty {
-
-                                ScrollView {
-                                    Text(transcript)
-                                        .lineSpacing(6)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .frame(maxHeight: 250)
-
-                            } else {
-                                Text("No transcript available.")
-                                    .font(.subheadline)
-                                    .foregroundColor(AppTheme.secondaryText)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(AppTheme.secondaryGroupedBackground)
-                    .cornerRadius(AppTheme.cornerRadius)
-                }
-
-            } else {
-                EmptyContentView(message: "Invalid video URL.")
-            }
-        }
-    }
 
     // MARK: - Transcript Download Helper
     private func createTranscriptFile(from text: String) -> URL? {
@@ -337,35 +288,61 @@ struct LessonContentView: View {
     
     @ViewBuilder
     private var footerActionView: some View {
-        if !isCurrentLessonCompleted {
-            Button(action: markAsComplete) {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Mark as Complete")
-                        .font(.headline)
+        VStack(spacing: 16) {
+            // Only show manual complete button for non-video lessons
+            if lesson.type != .video {
+                if !isCurrentLessonCompleted {
+                    Button(action: markAsComplete) {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Mark as Complete")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(AppTheme.primaryBlue)
+                        .foregroundColor(.white)
+                        .cornerRadius(AppTheme.cornerRadius)
+                        .shadow(color: AppTheme.primaryBlue.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(AppTheme.primaryBlue)
-                .foregroundColor(.white)
-                .cornerRadius(AppTheme.cornerRadius)
             }
-            .padding(.top, 8)
-        } else {
-            Button(action: moveToNextLesson) {
-                HStack {
-                    Text("Continue to Next Lesson")
-                        .font(.headline)
-                    Image(systemName: "arrow.right")
+            
+            // Show "Continue" or "Certificate" button
+            if isCurrentLessonCompleted {
+                if let next = determineNextLesson() {
+                    Button(action: { selectedLesson = next }) {
+                        HStack {
+                            Text("Continue to \(next.title)")
+                                .font(.headline)
+                            Image(systemName: "arrow.right")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(AppTheme.primaryText)
+                        .foregroundColor(AppTheme.groupedBackground)
+                        .cornerRadius(AppTheme.cornerRadius)
+                        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                } else {
+                    // No next lesson -> Course completed!
+                    Button(action: { showCompletionView = true }) {
+                        HStack {
+                            Image(systemName: "graduationcap.fill")
+                            Text("Claim Your Certificate")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(AppTheme.successGreen)
+                        .foregroundColor(.white)
+                        .cornerRadius(AppTheme.cornerRadius)
+                        .shadow(color: AppTheme.successGreen.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(AppTheme.primaryText)
-                .foregroundColor(AppTheme.groupedBackground)
-                .cornerRadius(AppTheme.cornerRadius)
             }
-            .padding(.top, 8)
         }
+        .padding(.vertical, 16)
     }
     
     private var sidebarOverlay: some View {
@@ -395,6 +372,43 @@ struct LessonContentView: View {
         }
     }
     
+    // Auto-complete for videos (no alert, just moves to next)
+    private func autoCompleteLesson() {
+        Task {
+            let success = await courseService.markLessonComplete(
+                userId: userId,
+                courseId: course.id,
+                lessonId: lesson.id
+            )
+
+            if success {
+                await MainActor.run {
+                    completedLessonIds.insert(lesson.id)
+                }
+
+                // Update course progress in DB
+                await courseService.updateCourseProgress(userId: userId, course: course)
+
+                // Notify dashboard
+                NotificationCenter.default.post(
+                    name: .courseProgressUpdated,
+                    object: nil
+                )
+                
+                // Auto-move to next lesson after a brief delay
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                await MainActor.run {
+                    if let next = determineNextLesson() {
+                        selectedLesson = next
+                    } else {
+                        // All lessons completed!
+                        showCompletionView = true
+                    }
+                }
+            }
+        }
+    }
+    
     private func markAsComplete() {
         Task {
             isLoading = true
@@ -407,17 +421,26 @@ struct LessonContentView: View {
             if success {
                 await MainActor.run {
                     completedLessonIds.insert(lesson.id)
-                    showCompletionAlert = true
                 }
 
                 // Update course progress in DB
                 await courseService.updateCourseProgress(userId: userId, course: course)
 
-                // 🔔 STEP C: notify dashboard
+                // Notify dashboard
                 NotificationCenter.default.post(
                     name: .courseProgressUpdated,
                     object: nil
                 )
+                
+                // Move to next lesson (no alert, stay in flow)
+                await MainActor.run {
+                    if let next = determineNextLesson() {
+                        selectedLesson = next
+                    } else {
+                        // All lessons completed!
+                        showCompletionView = true
+                    }
+                }
             }
             isLoading = false
         }
@@ -513,4 +536,5 @@ extension LessonContentView {
 
 extension Notification.Name {
     static let courseProgressUpdated = Notification.Name("courseProgressUpdated")
+    static let courseEnrolled = Notification.Name("courseEnrolled")
 }

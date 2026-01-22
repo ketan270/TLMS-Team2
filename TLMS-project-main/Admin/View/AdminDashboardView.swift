@@ -136,41 +136,64 @@ struct PendingCourseCard: View {
     
     var body: some View {
         HStack(spacing: 16) {
-            // Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                    .fill(AppTheme.primaryBlue.opacity(0.1))
-                    .frame(width: 50, height: 50)
-                
-                Image(systemName: "book.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(AppTheme.primaryBlue)
+            // Course Image Thumbnail
+            let imageName = CourseImageHelper.getCourseImage(courseCoverUrl: course.courseCoverUrl, category: course.category)
+            
+            if let uiImage = UIImage(named: imageName) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 80, height: 80)
+                    .cornerRadius(12)
+                    .clipped()
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(course.categoryColor.opacity(0.15))
+                    .frame(width: 80, height: 80)
+                    .overlay(
+                        Image(systemName: course.categoryIcon)
+                            .foregroundColor(course.categoryColor)
+                    )
             }
             
             // Info
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(course.title)
-                    .font(.headline)
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(AppTheme.primaryText)
+                    .lineLimit(1)
                 
-                Text(course.category)
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(AppTheme.primaryBlue)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(AppTheme.primaryBlue.opacity(0.1))
-                    .cornerRadius(6)
+                HStack(spacing: 8) {
+                    Text(course.category)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(course.categoryColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(course.categoryColor.opacity(0.1))
+                        .cornerRadius(6)
+                    
+                    Text(course.level.rawValue)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(AppTheme.secondaryText)
+                }
+                
+                if let price = course.price {
+                    Text(price == 0 ? "Free" : price.formatted(.currency(code: "INR")))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(AppTheme.primaryBlue)
+                }
             }
             
             Spacer()
             
             Image(systemName: "chevron.right")
-                .foregroundColor(AppTheme.secondaryText)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(AppTheme.secondaryText.opacity(0.3))
         }
-        .padding(16)
-        .background(AppTheme.secondaryGroupedBackground)
-        .cornerRadius(AppTheme.cornerRadius)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        .padding(12)
+        .background(AppTheme.cardBackground)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
     }
 }
 
